@@ -1,18 +1,14 @@
 package org.multics.baueran.frep.shared
 
-import fr.hmil.roshttp.HttpRequest
-import fr.hmil.roshttp.response.SimpleHttpResponse
-import monix.execution.Scheduler.Implicits.global
-import org.multics.baueran.frep.shared.Defs.{CookieFields}
-import org.multics.baueran.frep.shared.frontend.{RemedyFormat, apiPrefix, serverUrl}
+import org.multics.baueran.frep.shared.Defs.CookieFields
+import org.multics.baueran.frep.shared.frontend.{RemedyFormat, getCookieData, getTransientUserState, serverUrl}
 import org.multics.baueran.frep.shared.frontend.RemedyFormat._
 import org.scalajs.dom
 import scalatags.JsDom.all._
 
 import java.text.SimpleDateFormat
 import java.util.Date
-import scala.scalajs.js.annotation.JSExportTopLevel
-import scala.util.Success
+import scala.annotation.tailrec
 import scala.util.matching.Regex
 
 class BetterString(val s: String) {
@@ -20,25 +16,36 @@ class BetterString(val s: String) {
   def shorten(length: Int) = if (s.length <= length) s else s.substring(0, math.abs(length - 3)) + "..."
 }
 
-class BetterCaseRubric(val cr: CaseRubric) {
+class BetterCaseRubric(val cr: CazeRubric) {
+
+  /**
+    * Get list of weighted remedies with only single remedy occurrences and their respective highest occurring weight
+    * in all of a case's subrubrics. List is alphabetically sorted and then converted into HTML elements.
+    */
 
   def getFormattedRemedyNames(format: RemedyFormat) = {
-    cr.weightedRemedies.toList.sortBy(_.remedy.nameAbbrev).map {
+    val weightedRemedies = cr.subRubrics.flatMap(_.weightedRemedies)
+      .groupBy { case WeightedRemedy(remedy, weight) => remedy.nameAbbrev }
+      .mapValues { remedyList => remedyList.maxBy { case WeightedRemedy(remedy, weight) => weight } }
+      .values.toList
+      .sortBy(_.remedy.nameAbbrev)
+
+    weightedRemedies.map {
       case WeightedRemedy(r, w) =>
         val remedyName = if (format == RemedyFormat.Abbreviated) r.nameAbbrev else r.nameLong
 
         if (w == 0) // 0-valued, e.g., repertory bogboen
-          span(s"(${remedyName})")
+          s"(${remedyName})": Frag
         else if (w == 2)
-          b(remedyName)
+          b(remedyName): Frag
         else if (w == 3)
-          b(remedyName.toUpperCase())
+          b(remedyName.toUpperCase()): Frag
         else if (w == 4)
-          u(b(remedyName.toUpperCase()))
+          u(b(remedyName.toUpperCase())): Frag
         else if (w >= 5)
-          b(style:="text-decoration-line: underline; text-decoration-style: double;", remedyName.toUpperCase())
+          b(style:="text-decoration-line: underline; text-decoration-style: double;", remedyName.toUpperCase()): Frag
         else
-          span(remedyName) // 1-valued - the normal case
+          remedyName: Frag // 1-valued - the normal case
     }
   }
 
@@ -54,6 +61,7 @@ class SearchTerms(val symptom: String) {
   private def unexactSearchStringsOnly(rawSymptom: String): List[String] = {
     val exactSymptoms = exactSearchStringsOnly(rawSymptom)
 
+    @tailrec
     def removeExactSymptoms(input: String, exactsSymptoms: List[String]): String = {
       if (exactsSymptoms.length == 0)
         input
@@ -105,7 +113,9 @@ class SearchTerms(val symptom: String) {
         }
 
         if (expressionIsExact) {
-          val searchPattern = expressionMod.replaceAll("\\*", ".*").r
+          // We need to add the word boundaries (\b) on both ends, or the exact search would always implicitly
+          // behave as if a "*" was at both ends and match a lot more than it should.
+          val searchPattern = ("\\b" + expressionMod + "\\b").replaceAll("\\*", "[^ ]*").r
           searchPattern.findFirstMatchIn(textPassageMod) != None
         } else {
           val searchSpace: List[String] = textPassageMod.replaceAll("[^A-Za-z0-9 äüößÄÖÜ\\-]", "").split(" ").toList
@@ -152,48 +162,55 @@ class MyDate(isoDateString: String) {
     diff(new MyDate())
   }
 
+  def toHumanReadable() = isoDateString.substring(0,10)
+
   override def toString() = isoDateString
 }
 
 object TopLevelUtilCode {
 
-  @JSExportTopLevel("deleteCookies")
-  def deleteCookies() = {
+  def getDocumentCsrfCookie(): Option[String] = {
+    getTransientUserState(CookieFields.csrfCookie)
+  }
+
+  // Only delete cookies that OOREP set itself in order to store data
+  def deleteCustomCookies() = {
+    println("DEBUG: Deleting custom cookies...")
     val cookieNames = CookieFields.values.map(_.toString)
-    dom.document.cookie = "PLAY_SESSION=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT"
     cookieNames.foreach(cookieName =>
       dom.document.cookie = s"${cookieName}=; path=/; expires='Thu, 01 Jan 1970 00:00:01 GMT"
     )
   }
 
-  @JSExportTopLevel("sendAcceptCookies")
-  def sendAcceptCookies() = {
-    HttpRequest(s"${serverUrl()}/${apiPrefix()}/store_cookie")
-      .withQueryParameters("name" -> CookieFields.cookiePopupAccepted.toString, "value" -> "1")
-      .send()
-      .onComplete({
-        case _: Success[SimpleHttpResponse] =>
-          dom.document.getElementById("cookiePopup").asInstanceOf[dom.html.Div].classList.remove("show")
-          dom.document.getElementById("cookiePopup").asInstanceOf[dom.html.Div].style.setProperty("display", "none")
-        case _ =>
-          println("Error: Cookie popup not destroyed.")
-      })
+  // Delete also the PLAY session cookie
+  def deleteAllCookies() = {
+    dom.document.cookie = "PLAY_SESSION=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT"
+    println("DEBUG: Deleted play session cookie")
+    deleteCustomCookies()
   }
 
-  @JSExportTopLevel("loadMainPageAndJumpToAnchor")
+  def sendAcceptCookies() = {
+    HttpRequest2("store_cookie")
+      .withQueryParameters("name" -> CookieFields.cookiePopupAccepted.toString, "value" -> "1")
+      .onSuccess((response: String) => {
+        dom.document.getElementById("cookiePopup").asInstanceOf[dom.html.Div].classList.remove("show")
+        dom.document.getElementById("cookiePopup").asInstanceOf[dom.html.Div].style.setProperty("display", "none")
+      })
+      .send()
+  }
+
   def loadMainPageAndJumpToAnchor(anchor: String) = {
     if (dom.document.getElementById(anchor) != null) {
       dom.document.getElementById(anchor).scrollIntoView(true)
     } else {
-      dom.window.location.reload(true)
+      dom.window.location.reload()
       dom.window.location.assign(s"${serverUrl()}/#${anchor}")
     }
   }
 
-  @JSExportTopLevel("toggleTheme")
   def toggleTheme() = {
     def storeThemeInCookie(theme: String) =
-      HttpRequest(s"${serverUrl()}/${apiPrefix()}/store_cookie")
+      HttpRequest2("store_cookie")
         .withQueryParameters("name" -> CookieFields.theme.toString, "value" -> theme)
         .send()
 
@@ -205,7 +222,7 @@ object TopLevelUtilCode {
         normaltheme.removeAttribute("disabled")
         darktheme.setAttribute("disabled", "disabled")
         storeThemeInCookie("normal")
-      case _ =>
+      case null =>
         darktheme.removeAttribute("disabled")
         normaltheme.setAttribute("disabled", "disabled")
         storeThemeInCookie("dark")

@@ -1,33 +1,32 @@
 import sbt.Keys.libraryDependencies
 
-val myScalaVersion     = "2.13.1"
-val scalaTestPlusVersion = "5.1.0"
-val scalaJsDomVersion  = "1.0.0"
-val scalaTagsVersion   = "0.8.6"
-val scalatagsrxVersion = "0.5.0"
-val scalaJQueryVersion = "2.0"
-val circeVersion       = "0.13.0"
-val rosHttpVersion     = "3.0.0"
-val quillVersion       = "3.5.2"
-val pgDriverVersion    = "42.2.5"
-val scriptsVersion     = "1.1.4"
+val myScalaVersion     = "3.9.0"
+val scalaTestPlusVersion = "7.0.2"
+val scalaJsDomVersion  = "2.3.0"
+val scalaTagsVersion   = "0.13.1"
+val circeVersion       = "0.14.10"
+val quillVersion       = "4.8.5"
+val pgDriverVersion    = "42.7.4"
+val scriptsVersion     = "1.3.0"
 val apacheCommonsMailV = "1.5"
-
-resolvers in ThisBuild += "fr.hmil" at "https://files.hmil.fr/maven"
+val sttpVersion        = "4.0.0-M19"
+val monixVersion       = "3.4.1"
 
 useJCenter := true
 
-scalaVersion in ThisBuild := myScalaVersion
+ThisBuild / scalaVersion := myScalaVersion
+ThisBuild / evictionErrorLevel := Level.Info
 
 scalaJSStage in Global := FullOptStage
 
 lazy val backend = (project in file("backend")).settings(commonSettings).settings(
   scalaJSProjects := Seq(frontend, sec_frontend),
-  pipelineStages in Assets := Seq(scalaJSPipeline),
+  Assets / pipelineStages := Seq(scalaJSPipeline, gzip),
   pipelineStages := Seq(digest, gzip),
   // triggers scalaJSPipeline when using compile or continuous compilation
-  compile in Compile := ((compile in Compile) dependsOn scalaJSPipeline).value,
-  isDevMode in scalaJSPipeline := false,
+  Compile / compile := ((Compile / compile) dependsOn scalaJSPipeline).value,
+  scalaJSStage := FullOptStage,
+
   libraryDependencies ++= Seq(
     "com.vmunier" %% "scalajs-scripts" % scriptsVersion,
     jdbc,
@@ -42,24 +41,23 @@ lazy val backend = (project in file("backend")).settings(commonSettings).setting
     guice,
     specs2 % Test
   )
-).enablePlugins(PlayScala)
- .dependsOn(sharedJvm)
+).enablePlugins(PlayScala, SbtWeb)
+ .dependsOn(shared.jvm)
 
 lazy val frontend = (project in file("frontend")).settings(commonSettings).settings(
   scalaJSUseMainModuleInitializer := true,
+  scalaJSStage := FullOptStage,
 
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % scalaJsDomVersion,
     "com.lihaoyi" %%% "scalatags" % scalaTagsVersion,
-    "org.querki" %%% "jquery-facade" % scalaJQueryVersion,
     "io.circe" %%% "circe-core" % circeVersion,
     "io.circe" %%% "circe-generic" % circeVersion,
     "io.circe" %%% "circe-parser" % circeVersion,
-    "fr.hmil" %%% "roshttp" % rosHttpVersion,
-    "com.timushev" %%% "scalatags-rx" % scalatagsrxVersion
+    "com.softwaremill.sttp.client4" %%% "core" % sttpVersion
   ),
 ).enablePlugins(ScalaJSPlugin, ScalaJSWeb)
- .dependsOn(sharedJs)
+ .dependsOn(shared.js)
 
 lazy val sec_frontend = (project in file("sec_frontend")).settings(commonSettings).settings(
   scalaJSUseMainModuleInitializer := true,
@@ -67,15 +65,13 @@ lazy val sec_frontend = (project in file("sec_frontend")).settings(commonSetting
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % scalaJsDomVersion,
     "com.lihaoyi" %%% "scalatags" % scalaTagsVersion,
-    "org.querki" %%% "jquery-facade" % scalaJQueryVersion,
     "io.circe" %%% "circe-core" % circeVersion,
     "io.circe" %%% "circe-generic" % circeVersion,
     "io.circe" %%% "circe-parser" % circeVersion,
-    "fr.hmil" %%% "roshttp" % rosHttpVersion, 
-    "com.timushev" %%% "scalatags-rx" % scalatagsrxVersion
+    "com.softwaremill.sttp.client4" %%% "core" % sttpVersion
   ),
 ).enablePlugins(ScalaJSPlugin, ScalaJSWeb)
- .dependsOn(sharedJs)
+ .dependsOn(shared.js)
 
 lazy val shared = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
@@ -87,9 +83,9 @@ lazy val shared = crossProject(JSPlatform, JVMPlatform)
       "io.circe" %% "circe-parser" % circeVersion,
       "org.scala-js" %%% "scalajs-dom" % scalaJsDomVersion,
       "com.lihaoyi" %%% "scalatags" % scalaTagsVersion,
-      "org.querki" %%% "jquery-facade" % scalaJQueryVersion,
-      "fr.hmil" %%% "roshttp" % rosHttpVersion,
-      "com.timushev" %%% "scalatags-rx" % scalatagsrxVersion,
+      "com.softwaremill.sttp.client4" %%% "core" % sttpVersion,
+      "com.raquo" %%% "laminar" % "16.0.0",
+      "io.monix" %%% "monix" % monixVersion,
       "org.scalatestplus.play" %% "scalatestplus-play" % scalaTestPlusVersion % "test",
       guice,
       specs2 % Test
@@ -97,28 +93,12 @@ lazy val shared = crossProject(JSPlatform, JVMPlatform)
   )
   .enablePlugins(ScalaJSPlugin, ScalaJSWeb)
 
-lazy val sharedJvm = shared.jvm
-lazy val sharedJs = shared.js
-
-// This works only if you also do `export SBT_OPTS="-Dconfig.file=backend/conf/application.conf"`
-// prior to running sbt!
-// val restConfig = ConfigFactory.load()
-// val oorepVersion = restConfig.getString("oorep_version")
-
 lazy val commonSettings = Seq(
   scalaVersion := myScalaVersion,
   organization := "org.multics.baueran.frep",
   maintainer := "baueran@gmail.com",
-  version := "0.12.0-beta1"
+  version := scala.io.Source.fromFile("./backend/conf/version.txt").mkString.filter(_ >= ' ')
 )
-
-// TODO: This doesn't work, and I can't be bothered to get it to work.
-// It turns out Akka has default chunk size of 1MB whereas RosHttp only had 8192 bytes.
-//
-// https://discuss.lightbend.com/t/how-to-adjust-the-max-upload-chunk-size-in-play/2260
-// https://www.playframework.com/documentation/2.8.x/ConfigFile
-// import PlayKeys._
-// PlayKeys.devSettings += "akka.http.parsing.max-chunk-size" -> "8192 b"
 
 // loads the frontend project at sbt startup
 onLoad in Global := (onLoad in Global).value andThen {s: State => "project backend" :: s}

@@ -1,9 +1,200 @@
-  ___   ___  ____  _____ ____    _   _ _______        ______  
- / _ \ / _ \|  _ \| ____|  _ \  | \ | | ____\ \      / / ___| 
-| | | | | | | |_) |  _| | |_) | |  \| |  _|  \ \ /\ / /\___ \ 
-| |_| | |_| |  _ <| |___|  __/  | |\  | |___  \ V  V /  ___) |
- \___/ \___/|_| \_\_____|_|     |_| \_|_____|  \_/\_/  |____/ 
 
+   ██████╗  ██████╗ ██████╗ ███████╗██████╗
+  ██╔═══██╗██╔═══██╗██╔══██╗██╔════╝██╔══██╗
+  ██║   ██║██║   ██║██████╔╝█████╗  ██████╔╝
+  ██║   ██║██║   ██║██╔══██╗██╔══╝  ██╔═══╝
+  ╚██████╔╝╚██████╔╝██║  ██║███████╗██║
+   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝
+     ███╗   ██╗███████╗██╗    ██╗███████╗
+     ████╗  ██║██╔════╝██║    ██║██╔════╝
+     ██╔██╗ ██║█████╗  ██║ █╗ ██║███████╗
+     ██║╚██╗██║██╔══╝  ██║███╗██║╚════██║
+     ██║ ╚████║███████╗╚███╔███╔╝███████║
+     ╚═╝  ╚═══╝╚══════╝ ╚══╝╚══╝ ╚══════╝
+
+v0.19.0                  Sat Nov 21 01:21:35 PM CET 2026
+--------------------------------------------------------
+- Main features: 
+  - Repertory browsing now available
+  - Repertory search can be restricted to a single chapter
+  - Added repertory 'cowpert' (the German counterpart 'cowpert-de'
+    was already there)
+
+v0.18.1                  Sun Nov  8 10:55:16 AM CET 2026
+--------------------------------------------------------
+- Minor improvements and changes:
+  - Update various library/compiler versions
+
+- Bug fixes:
+  - Fix suggestion of search terms after results are shown 
+  - Fix display of OOREP version at bottom of page
+
+v0.18.0                 Sat Aug  8 08:59:38 AM CEST 2026
+--------------------------------------------------------
+- Main features
+  - Merging of rubrics now possible
+  - Major revamp of database schema to enable rubrics merging
+  - For authenticated users: A rudimentary settings dialog
+  - Updated orphaned docker build and images
+
+- Minor improvements and changes:
+  - Library and tool updates (e.g. ScalaJS 1.20.2)
+  - Removed "News" link from landing page
+  - For authenticated users: User-ID is no longer stored inside a cookie
+    but in the app's transient memory (should also fix some "stale
+    cookie problems")
+
+- Bug fixes:
+  - For authenticated users: OOREP didn't detect properly when a freshly
+    created case was actually saved persistently in the DB, and when it
+    wasn't
+
+v0.17.0                  Sat Dec 14 03:05:54 PM CET 2024 
+--------------------------------------------------------
+- Main features:
+  - Update to Play >= 3 and Scala >= 3
+
+- Minor improvements and changes:
+  - Update many other library versions
+  - Remove remaining dependencies on unmaintained scala.rx library
+  - Display source version information in the disclaimer
+
+- Bug fixes:
+  - For authenticated users: Detect and delete stale cookies from a
+    previous login resulting in repeated notifications of network
+    errors
+
+v0.16.1                  Sun Mar 24 10:36:47 AM CET 2024
+--------------------------------------------------------
+- Features:
+  - Protect the two main lookup pages with a cookie check against
+    leeching attacks
+  - Update to Play 2.9.2, ScalaJS 1.16.0 and Scala 2.13.13
+
+- Bug fixes:
+  - For authenticated users: Sorting in file modal dialogue broke
+    with the removal of RX libraries and is fixed now
+
+v0.16.0                     Sa 13. Jan 14:28:21 CET 2024
+--------------------------------------------------------
+- Main features:
+  - Update to Java 17, Play 2.9 and sbt 1.9
+  - Update to ScalaJS 1.15.0 and Scala 2.13.12
+  - Replace unmaintained RosHTTP library with sttp
+  - Remove unmaintained scalatags-rx library (as we want to use
+    Laminar in the future)
+
+- Minor improvements and changes:
+  - Routinely update a bunch of other library versions, where it
+    didn't hurt or require huge code restructurings
+
+v0.15.0                    Sa 16. Sep 13:36:29 CEST 2023
+--------------------------------------------------------
+- Main features:
+  - Change of database schema (not a user visible one, but
+    warrants for a new version number)
+
+- Minor improvements and changes:
+  - Add "Clone case" button for authenticated users
+  - Add icons to case buttons for authenticated users
+  - Replace deprecated OpenJDK docker image with Eclipse Temurin image
+  - Update to ScalaJS 1.13.2 and Scala 2.13.11
+  - Update a lot of other library and plugin versions (too many to
+    mention them all explicitly here; cf. a diff, if you care)
+  - New light-weight wrapper around the ScalaJS networking code
+    as to reduce dependencies to third-party networking libraries
+  - Define access level for users to determine which resources
+    (repositories, materia medicas) they have access to
+
+- Bug fixes:
+  - Opening of LARGE cases did not work
+  - Edit new case dialog would not enable or disable the
+    submit and cancel buttons appropriately
+  - OOREP would often crash after any kind of network transmission
+    error, whereas now it fails more gracefully
+
+v0.14.2                    Mo 15. Mai 18:31:05 CEST 2023
+--------------------------------------------------------
+- Minor improvements and changes:
+  - Prevent anonymous users from accessing protected materia medicas
+    and repertories using direct links
+  - Add 'secure' flag explicitly to all OOREP-created cookies
+  - Improved navbar layout for logged-in users
+  - A new file selection modal for logged-in users
+  - Replaced all inline JavaScript and therefore allow for a much
+    stricter/safer CSP at the web server
+  - Replaced all calls to jquery facade in the Scala code
+
+- Bug fixes:
+  - Make login counter and last login date capture work again
+  - Prevent creation of files with no file name
+  - Logged-in users can now access "protected" but not "private" resources
+    (useful for preview of resources to selected testers, etc.)
+
+v0.14.1                     Sat Jan 21 11:11:56 CET 2023
+--------------------------------------------------------
+- Minor improvements and changes:
+  - Update FAQ with example searches
+
+- Bug fixes:
+  - When logged in, the landing page contained the input mask twice
+  - Exact searches like "wisdom t*" would not be highlighted in MM
+    search
+  - Sharing of search link would fail when quotation marks were used
+
+v0.14.0                     Wed Dec 28 17:39:17 CET 2022
+--------------------------------------------------------
+- Main features:
+  - Buttons for sharing repertory search results and opening them in
+    a new window
+  - Buttons for sharing and opening materia medica search results in
+    a new window
+  - OOREP window title always reflects last search now as to make
+    working with multiple tabs easier
+
+- Minor improvements and changes:
+  - Move Play version to 2.8.18
+  - Move OpenJDK version to 11.0.16
+  - Renamed most of the $OOREP_X environment variables as to make
+    deployment easier
+
+- Bug fixes:
+  - Fix race condition that would prevent public link to repertory
+    search from loading
+
+v0.13.0                 Thu May 26 12:13:11 PM CEST 2022
+--------------------------------------------------------
+- Main features:
+  - Not really a user-visible one: but now would require
+    third-party-v3.tar.gz support file
+
+- Minor improvements and changes:
+  - Move from OpenJDK 11.0.14 to 11.0.15
+  - Move bootstrap and bootswatch from 4.2.1 to 4.3.1
+  - Move jquery from 3.3.1 to 3.5.1
+  - Load main JS application asynchronously
+  - Improvements to reactive/mobile layout
+  - Link to OOREP tutorial videos on landing page
+
+- Bug fixes:
+  - Fix display of unsuccessful repertory searches for
+    small repertories (e.g., boger)
+  - Fix materia medica and repertory info dialogs for
+    logged in users
+  - This time, hopefully really fix pagination display
+
+v0.12.1  Tue 03 May 2022 07:00:51 PM CEST [tag: v0.12.1]
+--------------------------------------------------------
+- Minor improvements and changes:
+  - Move from Play 2.8.13 to 2.8.15
+  - Add docker/Makefile (for developers only)
+  - Update site and project documentation
+
+- Bug fixes:
+  - Pressing 'redo' in repertory view no longer duplicates the
+    elements in the weight dropdown
+  - Fix display of "alt." remedy names in MM view
+  - Fix display (and test) of paginator
 
 v0.12.0  Sun Mar 27 08:07:19 PM CEST 2022 [tag: v0.12.0]
 --------------------------------------------------------

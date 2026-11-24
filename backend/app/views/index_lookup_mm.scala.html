@@ -1,0 +1,77 @@
+@(request: Request[AnyContent], materiaMedica: String, symptom: String, page: Int, hideSections: Boolean, remedyString: String, title: String)
+
+@import org.multics.baueran.frep.backend.controllers._
+@import org.multics.baueran.frep.shared.Defs._
+
+@header = {
+        <link id="normaltheme" rel="stylesheet" href="@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/third-party/bootstrap-4.3.1/css/bootstrap.min.css" @if(getFromRequestCookie(request, CookieFields.theme.toString).getOrElse("normal") == "dark") { disabled }>
+        <link id="darktheme" rel="stylesheet" href="@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/third-party/bootstrap-4.3.1/css/bootstrap-darkly.min.css" @if(getFromRequestCookie(request, CookieFields.theme.toString).getOrElse("normal") == "normal") { disabled }>
+        <script src="@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/third-party/jquery-3.5.1.min.js"></script>
+        <link rel="stylesheet" href="@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/mystyle.css">
+
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <meta property="og:image" content="@{org.multics.baueran.frep.backend.controllers.Get.staticServerUrl}@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/img/oorep_screenshot_shared.jpg" />
+        <meta property="og:image:secure_url" content="@{org.multics.baueran.frep.backend.controllers.Get.staticServerUrl}@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/img/oorep_screenshot_shared.jpg" />
+        <meta property="og:description" content="Free online repertory of homeopathy that requires only a web browser to run. Features many of the classical repertories, such as Kent, Boger, Hering, etc." />
+        <meta property="og:type" content="website" />
+
+        @if(remedyString.length > 0) {
+        <meta property="og:title" content="OOREP - chapter(s) for '@remedyString' in '@materiaMedica'" />
+        } else {
+        <meta property="og:title" content="OOREP - chapter(s) for '@symptom' in '@materiaMedica'" />
+        }
+
+        <meta name="description" content="Free online repertory of homeopathy that requires only a web browser to run. Features many of the classical repertories, such as Kent, Boger, Hering, etc." />
+        <meta name="keywords" content="oorep, online, repertory, homeopathy, repertorization, kent" />
+
+        <title>@title</title>
+}
+
+@main(title, header) {
+
+    @if(org.multics.baueran.frep.backend.controllers.getAuthenticatedUser(request) == None) {
+       @partial.cookiepopup(org.multics.baueran.frep.backend.controllers.Get.staticServerUrl)
+    }
+
+    @partial.navbar(org.multics.baueran.frep.backend.controllers.Get.staticServerUrl, request)
+
+    @partial.noscript_warning()
+
+    <div id="temporary_content">
+
+        <div style="width:100%;">
+            <div style="width:100%; margin-top:100px; margin-bottom:100px;" class="text-center">
+                <h1 style="font-size:20pt;">
+                    <a href="@{org.multics.baueran.frep.backend.controllers.Get.staticServerUrl}/"><img src="@{org.multics.baueran.frep.backend.controllers.Get.staticAssetsPath}/img/logo_small.png" width="180" height="65" alt="OOREP"></a>
+                    &nbsp; &middot; &nbsp; open online homeopathic repertory
+                </h1>
+            </div>
+
+            @partial.about()
+
+            @partial.features()
+
+        </div>
+
+    </div>
+
+    <div style="width:100%;" id="content"></div>
+
+    @partial.disclaimer()
+
+    @if(org.multics.baueran.frep.backend.controllers.getAuthenticatedUser(request) == None) {
+
+        <script id="main_script" data-landing="lookup_mm"
+                data-mm="@materiaMedica" data-symptom="@symptom" data-page="@page" data-hidesections="@hideSections" data-remedystring="@remedyString"
+                src="/assets/frontend-opt/main.js"></script>
+
+    } else {
+
+        <script id="main_script" data-landing="lookup_mm"
+                data-mm="@materiaMedica" data-symptom="@symptom" data-page="@page" data-hidesections="@hideSections" data-remedystring="@remedyString"
+                src="/assets/sec_frontend-opt/main.js"></script>
+
+    }
+
+}

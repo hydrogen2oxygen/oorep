@@ -1,3 +1,5 @@
+@import java.io.File
+
 <div style="width:100%;" id="content_bottom">
     <div id="disclaimer_div" class="jumbotron jumbo-dark text-center center-block" style="position: relative;">
 
@@ -14,14 +16,36 @@
                 Sie ist nicht geeignet zur Selbstmedikation oder ersetzt den Besuch eines Arztes oder Apothekers.
                 Die Wirksamkeit von Homöopathie ist wissenschaftlich nicht bewiesen!
                 Der Autor dieser Website übernimmt keine Verantwortung für die Richtigkeit der Ergebnisse oder die Folgen,
-                die aus einem unsachgemäßen Gebrauch resultieren.
+                die aus einem unsachgemäßen Gebrauch resultieren. Diese Website basiert aktuell auf Version
+                @{
+                  Option(getClass.getResourceAsStream("/version.txt")).map { stream =>
+                    val source = scala.io.Source.fromInputStream(stream)
+                    try {
+                      source.mkString.trim
+                    } finally {
+                      source.close()
+                    }
+                  }.getOrElse("unknown")
+                }
+         		des OOREP Quell-Codes.
             </p>
             <p style="text-align:justify;">
                 This homeopathy web site is intended for information purposes only.
                 It is not suitable for self-medication or can replace the visit of a medical doctor/GP.
                 Scientifically, homeopathy was never proven to actually work!
-                The author of this web site does not take responsibility for the correctness of this sites'
-                results or the consequences of misusing them.
+                The author of this web site does not take responsibility for the correctness of this site's
+                results or the consequences of misusing them. This website is currently based upon version
+                @{
+                  Option(getClass.getResourceAsStream("/version.txt")).map { stream =>
+                    val source = scala.io.Source.fromInputStream(stream)
+                    try {
+                      source.mkString.trim
+                    } finally {
+                      source.close()
+                    }
+                  }.getOrElse("unknown")
+                }
+                of the OOREP source code.
             </p>
         </div>
 
@@ -29,8 +53,6 @@
 
         <div class="container">
             <a class="underline" style="color:white;" href="@{org.multics.baueran.frep.backend.controllers.Get.staticServerUrl}/">Home</a>
-            |
-            <a class="underline" style="color:white;" href="https://twitter.com/OOREP1" target="_blank" rel="noopener noreferrer">News</a>
             |
             <a class="underline" style="color:white;" href="/impressum">Impressum</a>
             |
@@ -41,7 +63,7 @@
         <br>
         <div class="container" style="margin-top: 0.5cm; font-size:12px;">
             <p>
-                Copyright &#169; 2020-2022 Andreas Bauer. All rights reserved.
+                Copyright &#169; 2020-@{java.time.Year.now().getValue()} Andreas Bauer. All rights reserved.
             </p>
         </div>
     </div>

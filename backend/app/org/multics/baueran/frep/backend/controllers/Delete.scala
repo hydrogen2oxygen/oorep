@@ -3,32 +3,32 @@ package org.multics.baueran.frep.backend.controllers
 import javax.inject._
 import play.api.mvc._
 import org.multics.baueran.frep._
-import shared.CaseRubric
+import shared.CazeRubric
 import backend.db.db.DBContext
 
 class Delete @Inject()(cc: ControllerComponents, dbContext: DBContext) extends AbstractController(cc) with ServerUrl {
 
   private val Logger = play.api.Logger(this.getClass)
 
-  def apiSecDelCaseRubricsFromCaze() = Action { request: Request[AnyContent] =>
+  def apiSecDelCaseRubricsFromCaze() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
-        val requestData = request.body.asMultipartFormData.get.dataParts
+        val requestData = request.body.asFormUrlEncoded.get
 
         (requestData("memberID"), requestData("caseID"), requestData("caserubrics")) match {
           case (Seq(memberIdStr), Seq(cazeIDStr), Seq(caserubricsJson)) if (cazeIDStr.forall(_.isDigit) && (memberIdStr.forall(_.isDigit))) =>
-            (memberIdStr.toInt, cazeIDStr.toInt, CaseRubric.decodeList(caserubricsJson)) match {
+            (memberIdStr.toInt, cazeIDStr.toInt, CazeRubric.decodeList(caserubricsJson)) match {
               case (memberId, caseID, Some(caseRubrics)) =>
                 if (!isUserAuthorized(request, memberId)) {
                   Logger.error(s"Delete: delCaseRubricsFromCaze() failed: not authorised.")
                   Forbidden
                 } else {
-                  if (cazeDao.delCaseRubrics(caseID, caseRubrics) > 0) {
+                  if (cazeDao.delCaseRubrics(caseRubrics) > 0) {
                     Logger.debug(s"Delete: delCaseRubricsFromCaze(): success")
                     Ok
                   }
                   else {
-                    Logger.error(s"Delete: delCaseRubricsFromCaze(): failed")
+                    Logger.error(s"Delete: delCaseRubricsFromCaze(member: $memberId, caseID: $caseID, caserubrics: ${caseRubrics.map(_.id).mkString(", ")}): failed")
                     BadRequest("Delete: delCaseRubrics() failed")
                   }
                 }
@@ -47,10 +47,10 @@ class Delete @Inject()(cc: ControllerComponents, dbContext: DBContext) extends A
     }
   }
 
-  def apiSecDelCaze() = Action { request: Request[AnyContent] =>
+  def apiSecDelCaze() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
-        val requestData = request.body.asMultipartFormData.get.dataParts
+        val requestData = request.body.asFormUrlEncoded.get
 
         (requestData("caseId"), requestData("memberId")) match {
           case (Seq(caseIdStr), Seq(memberIdStr)) if (caseIdStr.forall(_.isDigit) && (memberIdStr.forall(_.isDigit))) =>
@@ -58,11 +58,16 @@ class Delete @Inject()(cc: ControllerComponents, dbContext: DBContext) extends A
               Logger.error(s"Delete: delCaze() failed: not authorised.")
               Forbidden
             } else {
-              cazeDao.delete(caseIdStr.toInt)
-              Ok
+              cazeDao.get(caseIdStr.toInt) match {
+                case Some(caze) =>
+                  cazeDao.delete(caze)
+                  Ok
+                case None =>
+                  BadRequest(s"Delete: delCaze() failed because case with ID ${caseIdStr} doesn't seem to exist?!")
+              }
             }
           case _ =>
-            BadRequest("Delete: delCaze() failed")
+            BadRequest("Delete: delCaze() failed because a bad request was issued.")
         }
       }
       case None =>
@@ -70,10 +75,10 @@ class Delete @Inject()(cc: ControllerComponents, dbContext: DBContext) extends A
     }
   }
 
-  def apiSecDelFileAndCases() = Action { request: Request[AnyContent] =>
+  def apiSecDelFileAndCases() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
-        val requestData = request.body.asMultipartFormData.get.dataParts
+        val requestData = request.body.asFormUrlEncoded.get
 
         (requestData("memberId"), requestData("fileId")) match {
           case (Seq(memberIdStr), Seq(fileIdStr)) if (fileIdStr.forall(_.isDigit) && (memberIdStr.forall(_.isDigit))) => {

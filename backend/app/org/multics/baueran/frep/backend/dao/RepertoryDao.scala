@@ -5,7 +5,7 @@ import org.multics.baueran.frep.backend.db
 import Defs.{ResourceAccessLvl, maxNumberOfResultsPerPage, maxNumberOfSymptoms, smallRepertoriesMaxSize}
 
 import scala.collection.mutable
-import io.getquill.Query
+import io.getquill._
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -26,7 +26,8 @@ class RepertoryDao(dbContext: db.db.DBContext) {
 
   private var _remedies: List[Remedy] = List()
   private val _repertories = new Repertories()
-  private var _extendedInfosLoggedIn: List[InfoExtended] = List()
+  private var _extendedInfosLoggedInUpToPrivate: List[InfoExtended] = List()
+  private var _extendedInfosLoggedInUpToProtected: List[InfoExtended] = List()
   private var _extendedInfosAnonymous: List[InfoExtended] = List()
   private val _numberOfRubricsInRep = new mutable.HashMap[String, Int]()
 
@@ -46,6 +47,44 @@ class RepertoryDao(dbContext: db.db.DBContext) {
 
         numberOfRubrics.toInt
       }
+    }
+  }
+
+  // case class Rubric(abbrev: String, id: Int, mother: Option[Int], isMother: Option[Boolean],
+  //                   chapterId: Int, fullPath: String, path: Option[String], textt: Option[String])
+
+  def getRubric(rubricId: Int, abbrev: String): Option[Rubric] = {
+    run(quote(query[Rubric]
+      .filter(rubric => rubric.id == lift(rubricId) && rubric.abbrev == lift(abbrev))
+    )) match {
+      case r :: Nil => Some(r)
+      case _ => None
+    }
+  }
+
+  // case class RubricRemedy(abbrev: String, rubricId: Int, remedyId: Int, weight: Int, chapterId: Int)
+
+  def getRubricRemedies(rubricId: Int, abbrev: String): List[RubricRemedy] = {
+    run(quote(query[RubricRemedy]
+      .filter(rr => rr.rubricId == lift(rubricId) && rr.abbrev == lift(abbrev))
+    ))
+  }
+
+  def getRemedy(remedyId: Int): Option[Remedy] = {
+    run(quote(query[Remedy]
+      .filter(_.id == lift(remedyId))
+    )) match {
+      case remedy :: Nil => Some(remedy)
+      case _ => None
+    }
+  }
+
+  def getRemedy(remedyAbbrev: String): Option[Remedy] = {
+    run(quote(query[Remedy]
+      .filter(_.nameAbbrev == lift(remedyAbbrev))
+    )) match {
+      case remedy :: Nil => Some(remedy)
+      case _ => None
     }
   }
 
@@ -70,7 +109,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
         val remedies = {
           run {
             quote {
-              infix"""select remedy.id, remedy.nameabbrev, remedy.namelong, remedy.namealt
+              sql"""select remedy.id, remedy.nameabbrev, remedy.namelong, remedy.namealt
                      from remedy
                         join repertoriesandremedies on abbrev='#${cleanAbbrev}' and remedy.id = any(remedy_ids::int[])"""
                 .as[Query[Remedy]]
@@ -78,7 +117,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
           }
         }
 
-        (_extendedInfosAnonymous ::: _extendedInfosLoggedIn).find(_.info.abbrev == cleanAbbrev) match {
+        (_extendedInfosAnonymous ::: _extendedInfosLoggedInUpToPrivate).find(_.info.abbrev == cleanAbbrev) match {
           case Some(extInfo) => _repertories.put(extInfo, new Remedies(remedies))
           case None => Logger.error("RepertoryDao: tried to add repertory remedies to data structure, but couldn't find extended repertory info.")
         }
@@ -92,30 +131,37 @@ class RepertoryDao(dbContext: db.db.DBContext) {
     }
   }
 
-  def getRepsAndRemedies(isUserLoggedIn: Boolean): List[InfoExtended] = {
+  def getRepsAndRemedies(loggedinMember: Option[Member]): List[InfoExtended] = {
 
-    // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // There is also this helpful view here in the DB which we query here and which needs REFRESHING,
     // when the DB data changes (e.g., when new repertory is added or rubrics modified manually):
     //
     // (TODO: Can we automatically trigger such a refresh within PostgreSQL, say, tied to modifications  in table 'rubricremedy' or multiple tables?)
     //
-    // CREATE MATERIALIZED VIEW repertoriesAndRemedies AS SELECT abbrev, array_agg(id) AS remedy_ids
-    //    FROM (SELECT DISTINCT remedy.id, rubricremedy.abbrev
+    // CREATE MATERIALIZED VIEW repertoriesAndRemedies AS
+    //       SELECT abbrev, array_agg(id) AS remedy_ids
+    //       FROM (SELECT DISTINCT remedy.id, rubricremedy.abbrev
     //             FROM remedy
     //             JOIN rubricremedy ON remedyid=remedy.id
-    //             JOIN info ON rubricremedy.abbrev=info.abbrev AND access<>'Protected'
-    //                ORDER BY remedy.id) AS x GROUP BY (abbrev);
+    //             JOIN info ON rubricremedy.abbrev=info.abbrev
+    //             ORDER BY remedy.id)
+    //       AS x GROUP BY (abbrev);
     //
     // ===> or rather, the new, udpated version, here:
     //
-    // CREATE MATERIALIZED VIEW repertoriesandremedies AS SELECT info.abbrev, title, languag, authorlastname, authorfirstname, yearr, publisher, license, edition, access, displaytitle,
-    //                                                           ARRAY_AGG(DISTINCT remedy.id) AS remedy_ids // TODO: Delete: ', CARDINALITY(ARRAY_AGG(DISTINCT rubricremedy.rubricid)) AS nonemptyrubrics'
-    //                                                       FROM info
-    //                                                       JOIN rubricremedy ON rubricremedy.abbrev=info.abbrev
-    //                                                       JOIN remedy ON remedy.id=rubricremedy.remedyid
-    //                                                          GROUP BY(info.abbrev, title, languag, authorlastname, authorfirstname, yearr, publisher, license, edition, access, displaytitle);
-    // ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // CREATE MATERIALIZED VIEW repertoriesandremedies AS
+    //       SELECT info.abbrev, title, languag, authorlastname, authorfirstname, yearr, publisher, license, edition, access, displaytitle,
+    //              ARRAY_AGG(DISTINCT remedy.id) AS remedy_ids // TODO: Delete: ', CARDINALITY(ARRAY_AGG(DISTINCT rubricremedy.rubricid)) AS nonemptyrubrics'
+    //       FROM info
+    //       JOIN rubricremedy ON rubricremedy.abbrev=info.abbrev
+    //       JOIN remedy ON remedy.id=rubricremedy.remedyid
+    //       GROUP BY(info.abbrev, title, languag, authorlastname, authorfirstname, yearr, publisher, license, edition, access, displaytitle);
+    //
+    // Or simply refresh a materialized view: `REFRESH MATERIALIZED VIEW repertoriesandremedies;`
+    // cf. https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html
+    //
+    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     case class TmpRepsAndRemedies(abbrev: String, title: String, languag: String,
                                   authorLastName: Option[String], authorFirstName: Option[String],
@@ -132,7 +178,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
 
     val tmpResults = run {
       quote {
-        infix"""SELECT * FROM repertoriesandremedies"""
+        sql"""SELECT * FROM repertoriesandremedies"""
           .as[Query[TmpRepsAndRemedies]]
       }
     }.map { res =>
@@ -142,18 +188,28 @@ class RepertoryDao(dbContext: db.db.DBContext) {
       )
     }
 
-    if (isUserLoggedIn) {
-      if (_extendedInfosLoggedIn.length == 0)
-        _extendedInfosLoggedIn = tmpResults.filter(_.info.access != ResourceAccessLvl.Protected)
-      _extendedInfosLoggedIn
-    } else {
-      if (_extendedInfosAnonymous.length == 0)
-        _extendedInfosAnonymous = tmpResults.filter(extendedInfo => extendedInfo.info.access == ResourceAccessLvl.Public || extendedInfo.info.access == ResourceAccessLvl.Default)
-      _extendedInfosAnonymous
+    loggedinMember match {
+      case Some(member) =>
+        // Show Public, Default, and Protected if `access` permits it.
+        if (member.access.getOrElse("") == ResourceAccessLvl.Private.toString) {
+          if (_extendedInfosLoggedInUpToPrivate.length == 0)
+            _extendedInfosLoggedInUpToPrivate = tmpResults
+          _extendedInfosLoggedInUpToPrivate
+        }
+        else {
+          if (_extendedInfosLoggedInUpToProtected.length == 0)
+            _extendedInfosLoggedInUpToProtected = tmpResults.filter(_.info.access != ResourceAccessLvl.Private)
+          _extendedInfosLoggedInUpToProtected
+        }
+      case None =>
+        // Show Public and Default.
+        if (_extendedInfosAnonymous.length == 0)
+          _extendedInfosAnonymous = tmpResults.filter(extendedInfo => extendedInfo.info.access == ResourceAccessLvl.Public || extendedInfo.info.access == ResourceAccessLvl.Default)
+        _extendedInfosAnonymous
     }
   }
 
-  def queryRepertory(abbrevFromMenu: String, searchTerms: SearchTerms, page: Int, remedyString: String, minWeight: Int, getRemedies: Boolean): Option[(ResultsCaseRubrics, List[ResultsRemedyStats])] = {
+  def queryRepertory(abbrevFromMenu: String, searchTerms: SearchTerms, page: Int, remedyString: String, minWeight: Int, getRemedies: Boolean, chapterIdOpt: Option[Int] = None): Option[(ResultsCazeRubrics, List[ResultsRemedyStats])] = {
     val abbrev = abbrevFromMenu.replaceAll("[^0-9A-Za-z\\-]", "")
 
     // Determining entered remedy is a bit more work than a simple declaration...
@@ -220,6 +276,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
                   rubric <- query[Rubric]
                   rubricRemedy <- query[RubricRemedy] if {
                     rubric.abbrev == lift(abbrev) &&
+                      (lift(chapterIdOpt).isEmpty || rubric.chapterId == lift(chapterIdOpt.getOrElse(-1))) &&
                       rubric.abbrev == rubricRemedy.abbrev &&
                       (rubric.fullPath.toLowerCase.like(lift(approximateSearchTerm)) ||
                         rubric.textt.getOrElse("").toLowerCase.like(lift(approximateSearchTerm)) ||
@@ -237,6 +294,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
                 query[Rubric]
                   .filter(rubric =>
                     rubric.abbrev == lift(abbrev) &&
+                      (lift(chapterIdOpt).isEmpty || rubric.chapterId == lift(chapterIdOpt.getOrElse(-1))) &&
                       (rubric.fullPath.toLowerCase.like(lift(approximateSearchTerm)) ||
                         rubric.textt.getOrElse("").toLowerCase.like(lift(approximateSearchTerm)) ||
                         rubric.path.getOrElse("").toLowerCase.like(lift(approximateSearchTerm)))
@@ -255,6 +313,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
                   rubric <- query[Rubric]
                   rubricRemedy <- query[RubricRemedy] if {
                     rubric.abbrev == lift(abbrev) &&
+                      (lift(chapterIdOpt).isEmpty || rubric.chapterId == lift(chapterIdOpt.getOrElse(-1))) &&
                       rubric.abbrev == rubricRemedy.abbrev &&
                       (rubric.fullPath.toLowerCase.like(lift(approximateSearchTerm)) ||
                         rubric.textt.getOrElse("").toLowerCase.like(lift(approximateSearchTerm)) ||
@@ -274,6 +333,7 @@ class RepertoryDao(dbContext: db.db.DBContext) {
                   rubric <- query[Rubric]
                   rubricRemedy <- query[RubricRemedy] if {
                     rubric.abbrev == lift(abbrev) &&
+                      (lift(chapterIdOpt).isEmpty || rubric.chapterId == lift(chapterIdOpt.getOrElse(-1))) &&
                       rubric.abbrev == rubricRemedy.abbrev &&
                       rubricRemedy.weight >= lift(minWeight) &&
                       rubricRemedy.rubricId == rubric.id &&
@@ -292,14 +352,17 @@ class RepertoryDao(dbContext: db.db.DBContext) {
       if (totalNumberOfRepertoryRubrics > smallRepertoriesMaxSize) {
         return None
       } else {
-        tmpRubricsAll = run(query[Rubric].filter(_.abbrev == lift(abbrev))).sortBy(_.fullPath)
+        tmpRubricsAll = chapterIdOpt match {
+          case Some(chId) => run(query[Rubric].filter(r => r.abbrev == lift(abbrev) && r.chapterId == lift(chId))).sortBy(_.fullPath)
+          case None => run(query[Rubric].filter(_.abbrev == lift(abbrev))).sortBy(_.fullPath)
+        }
       }
     }
 
     val remedyStats = new ArrayBuffer[ResultsRemedyStats]()
     if (getRemedies == true) {
       val rawQuery = quote {
-        infix"""SELECT rem.nameabbrev, count(rem.nameabbrev), sum(rr.weight) AS cumulativeweight FROM rubric AS rub
+        sql"""SELECT rem.nameabbrev, count(rem.nameabbrev), sum(rr.weight) AS cumulativeweight FROM rubric AS rub
                  JOIN rubricremedy AS rr ON rub.id = rr.rubricid AND rr.abbrev='#${abbrev}' AND rr.rubricid IN (#${tmpRubricsAll.map(_.id).mkString(",")})
                  JOIN remedy AS rem ON rem.id=rr.remedyid AND rub.abbrev=rr.abbrev
                  GROUP BY rem.nameabbrev ORDER BY count DESC"""
@@ -333,14 +396,83 @@ class RepertoryDao(dbContext: db.db.DBContext) {
       }
     }
 
-    def getWeightedRemedies(rubric: Rubric) =
-      tmpRubricRemedies.filter(_.rubricId == rubric.id).map(rr => WeightedRemedy(tmpRemedies.filter(_.id == rr.remedyId).head, rr.weight))
+    println(s"tmpRemedies: #${tmpRemedies.length}")
+
+    def getWeightedRemedies(rubric: Rubric) = {
+      tmpRubricRemedies.filter(_.rubricId == rubric.id).map(rr =>
+        WeightedRemedy(tmpRemedies.filter(_.id == rr.remedyId).head, rr.weight))
+    }
+
+    //    case class CazeRubric(id: Int,
+    //                          subRubrics: List[CazeSubRubric],
+    //                          var rubricWeight: Int,
+    //                          var rubricLabel: Option[String]) {
+    // val caseRubrics = tmpRubricsTruncated.map(rubric => CazeRubric(rubric, abbrev, 1, None, getWeightedRemedies(rubric)))
 
     // Compute the to be returned results...
-    val caseRubrics = tmpRubricsTruncated.map(rubric => CaseRubric(rubric, abbrev, 1, None, getWeightedRemedies(rubric)))
+    val caseRubrics = tmpRubricsTruncated.map(rubric => 
+      CazeRubric(-1, -1, List(CazeSubRubric(rubric, getWeightedRemedies(rubric))), 1, None)
+    )
     val returnTotalNumberOfPages = math.ceil(tmpRubricsAll.size.toDouble / maxNumberOfResultsPerPage.toDouble).toInt
     Logger.info(s"queryRepertory(abbrev: ${abbrev}, symptom: ${searchTerms.symptom}, page: ${page}, remedy: ${remedyString}, weight: ${minWeight}, getRemedies: $getRemedies) found ${tmpRubricsAll.size} case rubrics.")
-    Some((ResultsCaseRubrics(totalNumberOfRepertoryRubrics, tmpRubricsAll.size, returnTotalNumberOfPages, page, caseRubrics), remedyStats.toList))
+    Some((ResultsCazeRubrics(totalNumberOfRepertoryRubrics, tmpRubricsAll.size, returnTotalNumberOfPages, page, caseRubrics), remedyStats.toList))
+  }
+
+  def getChaptersForBrowse(abbrevFromMenu: String): List[RepertoryBrowseChapterInfo] = {
+    val abbrev = abbrevFromMenu.replaceAll("[^0-9A-Za-z\\-]", "")
+    val chapters = quote {
+      querySchema[Chapter]("chapter", _.text -> "textt")
+    }
+    val chapterList = run(quote(chapters.filter(_.abbrev == lift(abbrev)).sortBy(_.id)))
+    val chapterIds = chapterList.map(_.id)
+    val countsByChapter: Map[Int, Int] =
+      if (chapterIds.isEmpty) Map.empty
+      else run(
+        quote(
+          query[RubricRemedy]
+            .filter(rr => rr.abbrev == lift(abbrev) && liftQuery(chapterIds).contains(rr.chapterId))
+            .groupBy(_.chapterId)
+            .map { case (chapterId, rows) => (chapterId, rows.map(_.rubricId).distinct.size) }
+        )
+      ).map { case (chapterId, count) => (chapterId, count.toInt) }.toMap
+
+    chapterList.map(ch => RepertoryBrowseChapterInfo(ch, countsByChapter.getOrElse(ch.id, 0)))
+  }
+
+  def getBrowseChapterRubrics(abbrevFromMenu: String, chapterId: Int): List[RepertoryBrowseRubric] = {
+    val abbrev = abbrevFromMenu.replaceAll("[^0-9A-Za-z\\-]", "")
+    val rubrics = run(
+      quote(
+        query[Rubric]
+          .filter(r => r.abbrev == lift(abbrev) && r.chapterId == lift(chapterId))
+          .sortBy(r => r.id)
+      )
+    )
+    val rubricIdsWithRemedies =
+      if (rubrics.isEmpty) Set.empty[Int]
+      else run(
+        quote(
+          query[RubricRemedy]
+            .filter(rr => rr.abbrev == lift(abbrev) && rr.chapterId == lift(chapterId))
+            .map(_.rubricId)
+            .distinct
+        )
+      ).toSet
+
+    rubrics.map(r => RepertoryBrowseRubric(r.id, r.mother, r.isMother, r.chapterId, r.fullPath, r.path, rubricIdsWithRemedies.contains(r.id)))
+  }
+
+  def getRubricRemediesForBrowse(abbrevFromMenu: String, rubricId: Int): Option[RepertoryRubricRemedies] = {
+    val abbrev = abbrevFromMenu.replaceAll("[^0-9A-Za-z\\-]", "")
+    getRubric(rubricId, abbrev).map { rubric =>
+      val rubricRemedies = getRubricRemedies(rubricId, abbrev)
+      val remedies = if (rubricRemedies.isEmpty) List.empty[Remedy]
+      else run(quote(query[Remedy].filter(r => liftQuery(rubricRemedies.map(_.remedyId)).contains(r.id))))
+      val weighted = rubricRemedies.flatMap { rr =>
+        remedies.find(_.id == rr.remedyId).map(rem => WeightedRemedy(rem, rr.weight))
+      }.sortBy(wr => (-wr.weight, wr.remedy.nameAbbrev.toLowerCase))
+      RepertoryRubricRemedies(rubric, weighted)
+    }
   }
 
 }

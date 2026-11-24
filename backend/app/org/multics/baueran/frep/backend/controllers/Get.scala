@@ -1,13 +1,17 @@
 package org.multics.baueran.frep.backend.controllers
 
-import javax.inject._
-import io.circe.syntax._
+import javax.inject.*
+import io.circe.syntax.*
+import io.circe.Json
 import play.api.mvc._
-import org.multics.baueran.frep.backend.dao.{CazeDao, EmailHistoryDao, FileDao, MemberDao, PasswordChangeRequestDao, RepertoryDao, MMDao}
+import org.multics.baueran.frep.backend.dao.{CazeDao, EmailHistoryDao, FileDao, MMDao, MemberDao, PasswordChangeRequestDao, RepertoryDao}
 import org.multics.baueran.frep.shared._
 import org.multics.baueran.frep.backend.db.db.DBContext
 import Defs._
+import play.api.libs.json.JsResult.Exception
 
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 
 /**
@@ -43,18 +47,17 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     * see @logout
     */
 
-  def login() = Action { implicit request =>
+  def login() = Action { implicit request: Request[AnyContent] =>
     getAuthenticatedUser(request) match {
       case None =>
         Logger.error("Get: login() not completed successfully: sending user to logout to be safe.")
         Redirect(sys.env.get("OOREP_URL_LOGOUT").getOrElse(""))
-      case Some(uid) =>
-        Logger.debug(s"Get: login() completed for user ${uid.toString}.")
-        Redirect(sys.env.get("OOREP_APPLICATION_HOST").getOrElse(""))
-          .withCookies(
-            Cookie(CookieFields.id.toString, uid.toString, httpOnly = false),
-            Cookie(CookieFields.cookiePopupAccepted.toString, "1", httpOnly = false)
-          )
+      case Some(member) =>
+        memberDao.increaseLoginCounter(member.member_id)
+        memberDao.setLastSeen(member.member_id, new MyDate())
+        Logger.debug(s"Get: login() completed for user ${member.member_id.toString}.")
+        Redirect(serverUrl(request))
+          .withCookies(Cookie(CookieFields.cookiePopupAccepted.toString, "1", secure = true, httpOnly = false))
     }
   }
 
@@ -67,25 +70,28 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     * see @login
     */
 
-  def logout() = Action { implicit request =>
+  def logout() = Action { implicit request: Request[AnyContent] =>
     Redirect(sys.env.get("OOREP_URL_LOGOUT").getOrElse(""))
   }
 
-  def show(repertory: String, symptom: String, page: Int, remedyString: String, minWeight: Int) = Action { request: Request[AnyContent] =>
-    Ok(views.html.index_lookup(request, repertory, symptom, page - 1, remedyString, minWeight, s"OOREP ${xml.Utility.escape("—")} open online homeopathic repertory"))
+  def show(repertory: String, symptom: String, page: Int, remedyString: String, minWeight: Int, chapterId: Int = -1) = Action { implicit request: Request[AnyContent] =>
+    Ok(views.html.index_lookup(request, repertory, URLEncoder.encode(symptom, StandardCharsets.UTF_8.toString()), page - 1, remedyString, minWeight, chapterId, s"OOREP - ${symptom} (${repertory})"))
+  }
+
+  def showMM(materiaMedica: String, symptom: String, page: Int, hideSections: Boolean, remedyString: String) = Action { implicit (request: Request[AnyContent]) =>
+    Ok(views.html.index_lookup_mm(request, materiaMedica, URLEncoder.encode(symptom, StandardCharsets.UTF_8.toString()), page - 1, hideSections, remedyString, s"OOREP - ${symptom} (${materiaMedica})"))
   }
 
   def serve_static_html(page: String) = Action { implicit request: Request[AnyContent] =>
     page match {
       case "index" => Ok(views.html.index_landing(request))
-      case "cookies" => Ok(views.html.index_static_content(request, views.html.partial.cookies.render, "OOREP - Privacy policy"))
-      case "contact" => Ok(views.html.index_static_content(request, views.html.partial.contact.render, "OOREP - Contact"))
-      case "datenschutz" => Ok(views.html.index_static_content(request, views.html.partial.datenschutz.render, "OOREP - Datenschutzerklärung"))
-      case "faq" => Ok(views.html.index_static_content(request, views.html.partial.faq.render, "OOREP - Frequently asked questions and answers"))
-      case "forgot_password" => Ok(views.html.index_static_content(request, views.html.partial.forgot_password.render, s"OOREP ${xml.Utility.escape("—")} open online homeopathic repertory"))
-      case "impressum" => Ok(views.html.index_static_content(request, views.html.partial.impressum.render, "OOREP - Impressum", "de"))
-      case "pricing" => Ok(views.html.index_static_content(request, views.html.partial.pricing.render, "OOREP - Pricing"))
-      case "register" => Ok(views.html.index_static_content(request, views.html.partial.register.render, "OOREP - Registration"))
+      case "cookies" => Ok(views.html.index_static_content(request, views.html.partial.cookies.render(), "OOREP - Privacy policy"))
+      case "contact" => Ok(views.html.index_static_content(request, views.html.partial.contact.render(), "OOREP - Contact"))
+      case "datenschutz" => Ok(views.html.index_static_content(request, views.html.partial.datenschutz.render(), "OOREP - Datenschutzerklärung"))
+      case "faq" => Ok(views.html.index_static_content(request, views.html.partial.faq.render(), "OOREP - Frequently asked questions and answers"))
+      case "forgot_password" => Ok(views.html.index_static_content(request, views.html.partial.forgot_password.render(), s"OOREP ${xml.Utility.escape("—")} open online homeopathic repertory"))
+      case "impressum" => Ok(views.html.index_static_content(request, views.html.partial.impressum.render(), "OOREP - Impressum", "de"))
+      case "register" => Ok(views.html.index_static_content(request, views.html.partial.register.render(), "OOREP - Registration"))
       case _ => NotFound(views.html.defaultpages.notFound("GET", page))
     }
   }
@@ -112,26 +118,26 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
         BadRequest(views.html.defaultpages.badRequest("GET", request.uri, errorMessage))
     }
   }
-
-  def apiDisplayGetErrorPage(message: String) = Action { implicit request: Request[AnyContent] =>
+  
+  def apiDisplayGetErrorPage(message: String) = Action { implicit (request: Request[AnyContent]) =>
     BadRequest(views.html.defaultpages.badRequest("GET", request.uri, message))
   }
 
-  def apiStoreCookie(name: String, value: String) = Action { request: Request[AnyContent] =>
+  def apiStoreCookie(name: String, value: String) = Action { (request: Request[AnyContent]) =>
     if (name == CookieFields.cookiePopupAccepted.toString)
-      Ok.withCookies(Cookie(CookieFields.cookiePopupAccepted.toString, value, httpOnly = false))
+      Ok.withCookies(Cookie(CookieFields.cookiePopupAccepted.toString, value, secure = true, httpOnly = false))
     else if (name == CookieFields.theme.toString)
-      Ok.withCookies(Cookie(CookieFields.theme.toString, value, httpOnly = false))
+      Ok.withCookies(Cookie(CookieFields.theme.toString, value, secure = true, httpOnly = false))
     else {
       Logger.error(s"Get: apiStoreCookie(${name}, ${value}): failed")
       BadRequest
     }
   }
 
-  def apiAuthenticate() = Action { request: Request[AnyContent] =>
+  def apiAuthenticate() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
-      case Some(uid) =>
-        Ok(uid.toString)
+      case Some(member) =>
+        Ok(member.member_id.toString)
       case None =>
         val errStr = s"Get: apiAuthenticate(): User cannot be authenticated."
         Logger.error(errStr)
@@ -139,40 +145,57 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     }
   }
 
-  def apiAvailableRemedies() = Action { request: Request[AnyContent] =>
+  def apiAvailableRemedies() = Action { (request: Request[AnyContent]) =>
     Ok(repertoryDao.getRemedies().asJson.toString())
   }
 
-  def apiAvailableRepertoriesAndRemedies() = Action { request: Request[AnyContent] =>
-    Ok((repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request) != None).asJson.toString))
+  def apiAvailableRepertoriesAndRemedies() = Action { (request: Request[AnyContent]) =>
+    Ok((repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request)).asJson.toString))
   }
 
-  def apiAvailableMateriaMedicasAndRemedies() = Action { request: Request[AnyContent] =>
-    Ok(mmDao.getMMsAndRemedies(getAuthenticatedUser(request) != None).asJson.toString())
+  def apiAvailableMateriaMedicasAndRemedies() = Action { (request: Request[AnyContent]) =>
+    Ok(mmDao.getMMsAndRemedies(getAuthenticatedUser(request)).asJson.toString())
+  }
+
+  def apiSecSettings(memberId: Int) = Action { implicit (request: Request[AnyContent]) =>
+    getAuthenticatedUser(request) match {
+      case None =>
+        val errStr = "Get: apiSecSettings() failed: not authenticated"
+        Logger.error(errStr)
+        Unauthorized(errStr)
+      case Some(member) =>
+        if (!isUserAuthorized(request, memberId)) {
+          val err = s"Get: apiSecSettings() failed: not authorised"
+          Logger.error(err)
+          Forbidden(err)
+        } else {
+          Ok(member.asJson.toString())
+        }
+    }
   }
 
   /**
-    * Won't actually return files with associated cases, but a list of tuples, (file ID, file header).
+    * Won't actually return files with associated cases, but a list of tuples, (file ID, file header, file creation date).
     */
-  def apiSecAvailableFiles(memberId: Int) = Action { request: Request[AnyContent] =>
+  def apiSecAvailableFiles(memberId: Int) = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case None =>
         val errStr = "Get: apiSecAvailableFiles() failed: not authenticated"
         Logger.error(errStr)
         Unauthorized(errStr)
-      case Some(uid) =>
+      case Some(_) =>
         if (!isUserAuthorized(request, memberId)) {
           val err = s"Get: apiSecAvailableFiles() failed: not authorised"
           Logger.error(err)
           Forbidden(err)
         } else {
           val dbFiles = fileDao.getDbFilesForMember(memberId)
-          Ok(dbFiles.map(dbFile => (dbFile.id, dbFile.header)).asJson.toString)
+          Ok(dbFiles.asJson.toString())
         }
     }
   }
 
-  def apiSecGetFile(fileId: String) = Action { request: Request[AnyContent] =>
+  def apiSecGetFile(fileId: String) = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case None =>
         Logger.error("Get: apiSecGetFile(): not authenticated")
@@ -196,11 +219,11 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     }
   }
 
-  def apiSecGetCase(caseId: String) = Action { request: Request[AnyContent] =>
+  def apiSecGetCase(caseId: String) = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
-      case Some(uid) if (caseId.forall(_.isDigit)) => {
+      case Some(member) if (caseId.forall(_.isDigit)) => {
         cazeDao.get(caseId.toInt) match {
-          case Right(caze) if (caze.member_id == uid) =>
+          case Some(caze) if (caze.member_id == member.member_id) =>
             if (!isUserAuthorized(request, caze.member_id)) {
               val err = s"Get: apiSecGetCase() failed: not authorised."
               Logger.error(err)
@@ -219,6 +242,25 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     }
   }
 
+  def apiSecGetCaseRubrics(caseId: Int, caseMemberId: Int) = Action { (request: Request[AnyContent]) =>
+    getAuthenticatedUser(request) match {
+      case Some(member) if (caseMemberId == member.member_id) => {
+        cazeDao.getCaseRubrics(caseId) match {
+          case cazeRubrics  =>
+            if (!isUserAuthorized(request, caseMemberId)) {
+              val err = s"Get: apiSecGetCaseRubrics() failed: not authorised."
+              Logger.error(err)
+              Forbidden(err)
+            } else {
+              Ok(cazeRubrics.asJson.toString())
+            }
+        }
+      }
+      case _ =>
+        Unauthorized("apiSecGetCaseRubrics() failed: not authenticated or authorized.")
+    }
+  }
+
   /**
     * Returns basically a list of pairs with single entries like
     *
@@ -227,7 +269,8 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     * but JSON-encoded, of course.  (Descr, None, None) if no cases
     * are associated.
     */
-  def apiSecFileOverview(fileId: String) = Action { request: Request[AnyContent] =>
+  // TODO: This, unfortunately, is a super slow method and needs improvement!! (or rather, it needs improvement inside FileDao.scala)
+  def apiSecFileOverview(fileId: String) = Action { implicit (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) if (fileId.forall(_.isDigit)) =>
         val files = fileDao.getFIle(fileId.toInt)
@@ -237,8 +280,8 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
             files
               .flatMap(f =>
                 f.cazes match {
-                  case Nil => List((f.description, None, None))
-                  case cazes => cazes.map(c => (f.description, Some(c.id), Some(s"[${c.date.take(10)}] '${c.header}'")))
+                  case Nil => List(FileOverviewRow(f.description, None, None))
+                  case cazes => cazes.map(c => FileOverviewRow(f.description, Some(c.id), Some(s"[${c.date.take(10)}] '${c.header}'")))
                 }
               )
 
@@ -246,9 +289,9 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
             val err = s"Get: apiSecFileOverview() failed: not authorised"
             Logger.error(err)
             Forbidden(err)
-          } else {
-            Ok(results.asJson.toString())
           }
+          else
+            Ok(results.asJson.toString())
         }
         else {
           Logger.warn(s"Get: apiSecFileOverview(${fileId}): nothing found.")
@@ -261,41 +304,113 @@ class Get @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abst
     }
   }
 
-  def apiLookupRep(repertoryAbbrev: String, symptom: String, page: Int, remedyString: String, minWeight: Int, getRemedies: Int) = Action { request: Request[AnyContent] =>
-    val searchTerms = new SearchTerms(symptom.trim)
-    val cleanedUpAbbrev = repertoryAbbrev.replaceAll("[^0-9A-Za-z\\-]", "")
-
-    repertoryDao.queryRepertory(cleanedUpAbbrev, searchTerms, page, remedyString.trim, minWeight, getRemedies != 0) match {
-      case Some((ResultsCaseRubrics(totalNumberOfRepertoryRubrics, totalNumberOfResults, totalNumberOfPages, page, results), remedyStats)) if (totalNumberOfPages > 0) =>
-        Ok((ResultsCaseRubrics(totalNumberOfRepertoryRubrics, totalNumberOfResults, totalNumberOfPages, page, results), remedyStats).asJson.toString())
-      case _ =>
-        Logger.info(s"Get: apiLookupRep(abbrev: ${repertoryAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}, weight: ${minWeight}): no results found")
+  def apiLookupRep(repertoryAbbrev: String, symptom: String, page: Int, remedyString: String, minWeight: Int, getRemedies: Int, chapterId: Int = -1): Action[AnyContent] =
+    Action { (request: Request[AnyContent]) =>
+      // We don't allow '*' in the middle of a search term.  '*' can only be at beginning or end of a word, whether exact search term or not.
+      if (symptom.trim.matches(".*\\w+\\*\\w+.*") || symptom.trim.contains(" * ")) {
         NoContent
+      } else {
+        val searchTerms = new SearchTerms(symptom.trim)
+        val cleanedUpAbbrev = repertoryAbbrev.replaceAll("[^0-9A-Za-z\\-]", "")
+        val chapterFilter = if (chapterId >= 0) Some(chapterId) else None
+
+        // Check if user is allowed to access the resource at all (might be Private or Protected and user not logged in)
+        if (repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request)).find(_.info.abbrev == cleanedUpAbbrev) == None) {
+          Logger.warn(s"Get: apiLookupRep(abbrev: ${repertoryAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}, weight: ${minWeight}, chapterId: ${chapterId}): user not allowed to access ressource.")
+          NoContent
+        }
+        else {
+          // Do actual look-up and return results in case of success.
+          repertoryDao.queryRepertory(cleanedUpAbbrev, searchTerms, page, remedyString.trim, minWeight, getRemedies != 0, chapterFilter) match {
+            case Some((ResultsCazeRubrics(totalNumberOfRepertoryRubrics, totalNumberOfResults, totalNumberOfPages, page, results), remedyStats)) if (totalNumberOfPages > 0) =>
+              Ok((ResultsCazeRubrics(totalNumberOfRepertoryRubrics, totalNumberOfResults, totalNumberOfPages, page, results), remedyStats).asJson.toString())
+            case _ =>
+              Logger.info(s"Get: apiLookupRep(abbrev: ${repertoryAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}, weight: ${minWeight}, chapterId: ${chapterId}): no results found")
+              NoContent
+          }
+        }
+      }
     }
-  }
 
-  def apiLookupMM(mmAbbrev: String, symptom: String, page: Int, remedyString: String) = Action { request: Request[AnyContent] =>
-    val searchTerms = new SearchTerms(symptom.trim)
-    val cleanedUpAbbrev = mmAbbrev.replaceAll("[^0-9A-Za-z\\-]", "")
-
-    mmDao.getSectionHits(cleanedUpAbbrev, searchTerms, page, Some(remedyString)) match {
-      case Some(sectionHits) if (sectionHits.results.length > 0 || sectionHits.numberOfMatchingSectionsPerChapter.length > 0) =>
-        Ok(sectionHits.asJson.toString())
-      case _ =>
-        Logger.info(s"Get: apiLookupMM(abbrev: ${mmAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}): no results found")
+  def apiLookupMM(mmAbbrev: String, symptom: String, page: Int, remedyString: String): Action[AnyContent] =
+    Action { (request: Request[AnyContent]) =>
+      // We don't allow '*' in the middle of a search term.  '*' can only be at beginning or end of a word, whether exact search term or not.
+      if (symptom.trim.matches(".*\\w+\\*\\w+.*") || symptom.trim.contains(" * ")) {
         NoContent
+      } else {
+        val searchTerms = new SearchTerms(symptom.trim)
+        val cleanedUpAbbrev = mmAbbrev.replaceAll("[^0-9A-Za-z\\-]", "")
+
+        // Check if user is allowed to access the resource at all (might be Private or Protected and user not logged in)
+        if (mmDao.getMMsAndRemedies(getAuthenticatedUser(request)).find(_.mminfo.abbrev == cleanedUpAbbrev) == None) {
+          Logger.info(s"Get: apiLookupMM(abbrev: ${mmAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}): user not allowed to access ressource.")
+          NoContent
+        }
+        else {
+          // Do actual look-up and return results in case of success.
+          mmDao.getSectionHits(cleanedUpAbbrev, searchTerms, page, Some(remedyString)) match {
+            case Some(sectionHits) if (sectionHits.results.length > 0 || sectionHits.numberOfMatchingSectionsPerChapter.length > 0) =>
+              Ok(sectionHits.asJson.toString())
+            case _ =>
+              Logger.info(s"Get: apiLookupMM(abbrev: ${mmAbbrev}, symptom: ${symptom}, page: ${page}, remedy: ${remedyString}): no results found")
+              NoContent
+          }
+        }
+      }
     }
-  }
+
+  def apiBrowseRepertory(repertory: String): Action[AnyContent] =
+    Action { (request: Request[AnyContent]) =>
+      val cleanedUpAbbrev = repertory.replaceAll("[^0-9A-Za-z\\-]", "")
+      if (repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request)).find(_.info.abbrev == cleanedUpAbbrev).isEmpty) {
+        Logger.warn(s"Get: apiBrowseRepertory(abbrev: ${repertory}): user not allowed to access resource.")
+        NoContent
+      }
+      else {
+        val chapters = repertoryDao.getChaptersForBrowse(cleanedUpAbbrev)
+        if (chapters.isEmpty) {
+          Logger.info(s"Get: apiBrowseRepertory(abbrev: ${repertory}): no chapters found")
+          NoContent
+        }
+        else
+          Ok(RepertoryBrowseChaptersResponse(chapters).asJson.toString())
+      }
+    }
+
+  def apiBrowseChapter(repertory: String, chapterId: Int): Action[AnyContent] =
+    Action { (request: Request[AnyContent]) =>
+      val cleanedUpAbbrev = repertory.replaceAll("[^0-9A-Za-z\\-]", "")
+      if (repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request)).find(_.info.abbrev == cleanedUpAbbrev).isEmpty) {
+        Logger.warn(s"Get: apiBrowseChapter(abbrev: ${repertory}, chapterId: ${chapterId}): user not allowed to access resource.")
+        NoContent
+      }
+      else {
+        val rubrics = repertoryDao.getBrowseChapterRubrics(cleanedUpAbbrev, chapterId)
+        Ok(RepertoryBrowseChapterResponse(chapterId, rubrics).asJson.toString())
+      }
+    }
+
+  def apiBrowseRubricRemedies(repertory: String, rubricId: Int): Action[AnyContent] =
+    Action { (request: Request[AnyContent]) =>
+      val cleanedUpAbbrev = repertory.replaceAll("[^0-9A-Za-z\\-]", "")
+      if (repertoryDao.getRepsAndRemedies(getAuthenticatedUser(request)).find(_.info.abbrev == cleanedUpAbbrev).isEmpty) {
+        Logger.warn(s"Get: apiBrowseRubricRemedies(abbrev: ${repertory}, rubricId: ${rubricId}): user not allowed to access resource.")
+        NoContent
+      }
+      else {
+        repertoryDao.getRubricRemediesForBrowse(cleanedUpAbbrev, rubricId) match {
+          case Some(result) => Ok(result.asJson.toString())
+          case None =>
+            Logger.info(s"Get: apiBrowseRubricRemedies(abbrev: ${repertory}, rubricId: ${rubricId}): rubric not found")
+            NoContent
+        }
+      }
+    }
 
 }
 
 // Used in HTML-templates/-files
-object Get {
-  val staticServerUrl = {
-    sys.env.get("OOREP_APPLICATION_HOST") match {
-      case Some(host) => host
-      case _ => "https://www.oorep.com"
-    }
-  }
+object Get extends ServerUrl {
+  val staticServerUrl = serverUrl()
   val staticAssetsPath = "/assets/html"
 }

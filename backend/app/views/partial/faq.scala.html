@@ -93,14 +93,14 @@
     <h5 class="freetext">&bull; Who wrote OOREP?</h5>
 
 	<p style="text-align:justify;">
-		OOREP was written by Andreas Bauer (see also contact
+		OOREP was written entirely by Andreas Bauer (see also contact
 		section at the bottom of this site or impressum for
 		German-speaking users) in his copious spare time.
 
 		Its source code can be freely obtained from its
 		<a href="https://github.com/nondeterministic/oorep">git repository</a>.
-		It is published under the so-called GNU General	Public License
-		(short: GPL) and as such, OOREP comes with no warranty, no
+		It is published under the GNU General Public License
+		(short: GPL) and as such OOREP comes with no warranty, no
 		guarantees, not even fitness for a particular purpose.
     </p>
 
@@ -108,7 +108,7 @@
 
     <p style="text-align:justify;">
 		At the moment, there is more than a dozen different repertories and materia medicas installed
-		on this server.  We do <b>not</b> consider them all to be part of
+		on this server.  We do <b>not</b> consider them <b>all</b> to be part of
 		OOREP itself though.  Until further notice, the OOREP source
 		code is only accompanied by the <i>kent-de</i> and <i>publicum</i>
 		repertories as well as the <i>boericke</i> materia medica (see list below).
@@ -122,7 +122,6 @@
     </p>
 
     <ul>
-
 		<li>boen [under development]: <b>T. F. Allen:</b> <i>Boenninghausen's
 			Therapeutic Pocket Book</i>, The Hahnemann Publishing House, Philadelphia (1891).</li>
 
@@ -140,9 +139,21 @@
 		<li>bogsk-de: German translation of <i>bogsk</i> by <a href="https://naturheilpraxis-maier.de/">Naturheilpraxis Maier</a> (2020).
 			Used with friendly permission from <b>Andreas Maier</b>.</li>
 
-		<li>cowpert-de: German translation of the clinical index contained in <b>A. C. Cowperthwaite</b>'s <i>Text-Book of Materia Medica and Therapeutics</i> (John B. Delbridge & Son, 1905)
+<!--		<li>-->
+<!--			clarketooth: <b>J. H. Clarke:</b> <i>Repertory of Remedies for Toothache</i> (compiled from J. H. Clarke's <i>The Prescriber</i> (3rd ed., 1899) by <b>Sylvain Cazalet</b>),-->
+<!--			<a href="http://www.homeoint.org/cazalet/clarke/toothache.htm">online</a> (2003).-->
+<!--		</li>-->
+
+                <li>cowpert: Clinical index contained in <b>A. C. Cowperthwaite</b>'s <i>Text-Book of Materia Medica and Therapeutics</i>,
+			Gross &amp; Delbridge, Chicago (1891).</li>
+
+		<li>cowpert-de: German translation of the clinical index contained in <b>A. C. Cowperthwaite</b>'s <i>Text-Book of Materia Medica and Therapeutics</i> (John B. Delbridge &amp; Son, 1905)
 			by <a href="https://naturheilpraxis-maier.de/">Naturheilpraxis Maier</a> (2021).
 			Used with friendly permission from <b>Andreas Maier</b>.
+		</li>
+
+		<li>dorcsi-de: <b>M. Dorcsi:</b> <i>Symptomenverzeichnis</i>, <a href="https://www.hahnemann.de/">Hahnemann Institut</a>, Greifenberg (2018).
+			Used with friendly permission from <b>Reinhard Rosé</b>.
 		</li>
 
 		<li>hering: <b>C. B. Kneer:</b> <i>Repertory of Hering's Guiding Symptoms of our
@@ -169,7 +180,6 @@
 		<li>tylercold: <b>M. L. Tyler:</b> <i>Miniature repertory of the common cold</i>
 			taken from <i>Pointers to the Common Remedies</i>,
 			British Homeopathic Association (1934).</li>
-
     </ul>
 
     <p style="text-align:justify;">
@@ -192,6 +202,14 @@
 		<li>clarke: <b>J. H. Clarke:</b> <i>A Dictionary of Practical Materia Medica</i>,
 			The Homeopathic Publishing Company, London (1902).</li>
 
+		<li>
+			heringc: <b>C. Hering:</b> <i>Condensed Materia Medica</i>, 4th ed., Boericke &amp; Tafel, Philadelphia (1894).
+		</li>
+
+		<li>
+			heringc-de: <b>C. Hering:</b> <i>Kurzgefasste Arzneimittellehre</i> (German translation of <i>heringc</i>), <a href="https://www.hahnemann.de/">Hahnemann Institut</a>, Greifenberg (2017).
+			Used with friendly permission from <b>Reinhard Rosé</b>.
+		</li>
 	</ul>
 
     <p style="text-align:justify;">
@@ -204,15 +222,6 @@
 		however, attempt to correct it as soon as possible.
     </p>
 
-    <p style="text-align:justify;">
-		Please also note that the availability of certain repertories and materia medicas
-		is likely to change in the future.  There will always be one
-		or two repertories and materia medicas free to use for anybody who wishes to, but
-		we have plans to make certain features and resources
-		available only to those, who register with this web
-		site. When/if this will happen, we cannot foresee right now.
-    </p>
-      
     <h5 class="freetext">&bull; Any plans to offer the modern/big repertories like Synthesis or Murphy?</h5>
 
     <p style="text-align:justify;">
@@ -238,62 +247,165 @@
 	</p>
 
   </div>
-  
+
   <div class="col">
-    
-    <h3 class="freetext">Other</h3>
-    
-    <h5 class="freetext">&bull; Why am I not getting good search results from OOREP?</h5>
 
-    <p style="text-align:justify;">
-	There are possibly three major reasons, why you may be dissatisifed with
-	the search results of this site:
-    </p>
+	<h3 class="freetext">Search</h3>
 
-    <p style="text-align:justify;">
-		1. the search returned too many results and you have trouble finding
-		the one that is specific to your need. If that's the case, you can try
-		restricting your search by adding additional search terms to narrow
-		the scope. Alternatively, you can <b>exclude</b> certain search terms
-		to make your search more specific. So, for example, rather than looking
-		for <i>pain</i>, you could look for <tt>pain, -abdomen, -head</tt>, thereby excluding
-		all results containing <i>head</i> or <i>abdomen</i>.
-    </p>
+	  <h5 class="freetext">&bull; Why am I not getting good search results from OOREP?</h5>
 
-	<div class="alert alert-primary container" style="width: 85%;">
-		<i class="oi oi-info"></i>
-		<strong class="mx-2">Info!</strong>
-		Exclude certain symptoms using <i>minus</i>, like <tt>pain, -abdomen, -head</tt>.
-	</div>
+	  <p style="text-align:justify;">
+		  There are possibly three major reasons, why you may be dissatisifed with
+		  the search results of this site:
+	  </p>
 
-    <p style="text-align:justify;">
-		2. the search doesn't return enough results for a
-		single look-up.  In this case, try using
-		so-called <b>wildcards</b>.  So, instead of looking for
-		<tt>throat, dry</tt> (2 results in publicum), you could try looking
-		for <tt>throat*, dry*</tt> (47 results in publicum).  This also
-		matches <i>dryness</i>, for example.
-    </p>
+	  <p style="text-align:justify;">
+		  1. the search returned too many results and you have trouble finding
+		  the one that is specific to your need. If that's the case, you can try
+		  restricting your search by adding additional search terms to narrow
+		  the scope. Alternatively, you can <b>exclude</b> certain search terms
+		  to make your search more specific. So, for example, rather than looking
+		  for <i>pain</i>, you could look for <tt>pain, -abdomen, -head</tt>, thereby excluding
+		  all results containing <i>head</i> or <i>abdomen</i>.
+	  </p>
 
-	<div class="alert alert-primary container" style="width: 85%;">
-		<i class="oi oi-info"></i>
-		<strong class="mx-2">Info!</strong>
-		Use the <i>star-symbol</i> as placeholder: <tt>pain*</tt> will also match <i>painful, pain, painless, pains</i>, etc.
-	</div>
+	  <div class="alert alert-primary container" style="width: 85%;">
+		  <i class="oi oi-info"></i>
+		  <strong class="mx-2">Info!</strong>
+		  Exclude certain symptoms using <i>minus</i>, like <tt>pain, -abdomen, -head</tt>.
+	  </div>
 
-	<p style="text-align:justify;">
-		3. Especially in materia medica search, you may find that results are not
-		specific enough. For example, if you look for <i>swollen gums</i> as a symptom
-		then "gums, swollen" gets all sections that contain symptoms about the gums
-		and swellings, but not necessarily swollen gums. You can use <b>exact search</b>
-		with explicit <b>quotation marks</b> for that as follows:
-	</p>
+	  <p style="text-align:justify;">
+		  2. the search doesn't return enough results for a
+		  single look-up.  In this case, try using
+		  so-called <b>wildcards</b>.  So, instead of looking for
+		  <tt>throat, dry</tt> (2 results in publicum), you could try looking
+		  for <tt>throat*, dry*</tt> (47 results in publicum).  This also
+		  matches <i>dryness</i>, for example.
+	  </p>
 
-	<div class="alert alert-primary container" style="width: 85%;">
-		<i class="oi oi-info"></i>
-		<strong class="mx-2">Info!</strong>
-		Search for <tt><red>"</red>gums swollen"</tt> instead of <tt>gums swollen</tt> (or even better: <tt>"gums sw*"</tt>).
-	</div>
+	  <div class="alert alert-primary container" style="width: 85%;">
+		  <i class="oi oi-info"></i>
+		  <strong class="mx-2">Info!</strong>
+		  Use the <i>star-symbol</i> as placeholder: <tt>pain*</tt> will also match <i>painful, pain, painless, pains</i>, etc.
+	  </div>
+
+	  <p style="text-align:justify;">
+		  3. Especially in materia medica search, you may find that results are not
+		  specific enough. For example, if you look for <i>swollen gums</i> as a symptom
+		  then <tt>gums, swollen</tt> gets all sections that contain symptoms about the gums
+		  and swellings, but not necessarily swollen gums. You can use <b>exact search</b>
+		  with explicit <b>quotation marks</b> for that as follows:
+	  </p>
+
+	  <div class="alert alert-primary container" style="width: 85%;">
+		  <i class="oi oi-info"></i>
+		  <strong class="mx-2">Info!</strong>
+		  Search for <tt>"gums swollen"</tt> instead of <tt>gums swollen</tt> (or even better: <tt>"gums sw*"</tt>).
+	  </div>
+
+	  <h5 class="freetext">&bull; Show me some EXAMPLE searches!</h5>
+
+	  <p style="text-align:justify;">
+		  Combine <b>wildcards</b> and <b>exclusion</b> to find all sections that contain anything about swollen gums or swellings, but no sections that merely mention sweets, or sweet taste, etc.:
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>gum*, sw*, -sweet*</tt>
+	  </div>
+
+	  <p style="text-align:justify;">
+		  The <b>exact search</b> (that is, the use of quotation marks) is particularly useful for searching in a materia medica, but can be used in repertory search as well, of course.
+	  </p>
+
+	  <p style="text-align:justify;">
+		  Combine <b>exact search</b> and <b>wildcard</b> to find all sections that contain <i>wisdom teeth</i> or <i>wisdom tooth</i> (but not, <i>wisdom of Hahnemann's method</i>, for example):
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>"wisdom t*"</tt>
+	  </div>
+
+	  <div class="alert alert-danger container" style="width: 85%;">
+		  <i class="oi oi-flash"></i>
+		  <strong class="mx-2">Invalid:</strong>
+		  <tt>"wisd*m teeth"</tt> (Why? A '<tt>*</tt>' can only be at beginning or end of a word.)
+	  </div>
+
+	  <p style="text-align:justify;">
+		  Combine <b>exact search</b> and <b>wildcards</b> to find all sections that contain <i>spine pain</i>, <i>spine pains</i>, <i>spinal pain</i>, or <i>spinal pains</i>, etc.:
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>"spin* pain*"</tt> (Note the use of two '<tt>*</tt>' in one exact search!)
+	  </div>
+
+	  <p style="text-align:justify;">
+		  Combine <b>exact search</b> with a <b>plain search</b> to find all sections that contain <i>spine pain</i>, <i>spine pains</i>, <i>spinal pain</i>, or <i>spinal pains</i>, etc. as well as <i>headache</i>:
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>"spin* pain*", headache</tt>
+	  </div>
+
+	  <p style="text-align:justify;">
+		  Combine two or more <b>exact searches</b> to find all sections that contain anything to do with heart palpitations and the exact words <i>pain in</i>:
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>"heart palp*", "pain in"</tt>
+	  </div>
+
+	  <p style="text-align:justify;">
+		  Combine <b>exact search</b> with <b>exclusion</b> to find all sections that contain anything to do with heart palpitations but not the exact words <i>pain in</i>:
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Valid:</strong>
+		  <tt>"heart palp*", -"pain in"</tt>
+	  </div>
+
+	  <div class="alert alert-danger container" style="width: 85%;">
+		  <i class="oi oi-flash"></i>
+		  <strong class="mx-2">Invalid:</strong>
+		  <tt>-"heart palp*", -"pain in"</tt> (Why? You need at least one <i>positive</i> search term.)
+	  </div>
+
+	  <h5 class="freetext">&bull; When do I need the commas?</h5>
+
+	  <p style="text-align:justify;">
+		  Search does not care, if you separate search terms with a comma (',') or not.
+		  A comma really only makes a difference within an <b>exact search</b>; that is, within an enclosed term "...".
+	  </p>
+
+	  <div class="alert alert-success container" style="width: 85%;">
+		  <i class="oi oi-check"></i>
+		  <strong class="mx-2">Equal:</strong>
+		  <tt>pain*, head, left</tt> &nbsp; &nbsp; <b>=</b> &nbsp; &nbsp; <tt>pain* head left</tt>
+	  </div>
+
+	  <div class="alert alert-danger container" style="width: 85%;">
+		  <i class="oi oi-flash"></i>
+		  <strong class="mx-2">Not equal:</strong>
+		  <tt>"back, pain"</tt> &nbsp; &nbsp; <b>&#8800;</b> &nbsp; &nbsp; <tt>"back pain"</tt>
+	  </div>
+
+  </div>
+
+  <div class="col">
+
+	<h3 class="freetext">Other</h3>
 
     <h5 class="freetext">&bull; How does registration/login work?</h5>
       
@@ -308,16 +420,14 @@
     <h5 class="freetext">&bull; How much does OOREP cost?</h5>
       
     <p style="text-align:justify;">
-	OOREP is free and always will be!  However, there will be a
-	paid service subscription model on this web site, which you
-	may or may not want to use in the future.  See also the
-	pricing section on this site (see top of page).
+		The site www.oorep.com is FREE to use and there are currently no plans to change that in the future.
+		Afterall, OOREP is open source software (for source code, refer to answers above).
     </p>
       
     <h5 class="freetext">&bull; Do you have a cookie and privacy policy?</h5>
 
     <p style="text-align:justify;">
-	Yes, please see the policy link at the bottom of this site.
+		Yes, please see the policy link at the bottom of this site.
     </p>
       
     <h5 class="freetext">&bull; Who do I contact and where may I get support from?</h5>

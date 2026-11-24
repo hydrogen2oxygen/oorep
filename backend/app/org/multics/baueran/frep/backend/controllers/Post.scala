@@ -7,14 +7,21 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 import org.multics.baueran.frep._
-import shared.{CaseRubric, Caze, EmailHistory, FIle, MyDate, PasswordChangeRequest}
+import shared.{CazeRubric, CazeRubricJsonHelper, Caze, EmailHistory, FIle, MyDate, PasswordChangeRequest, Member}
 import backend.db.db.DBContext
+
+import io.circe.syntax.*
+import io.circe.Json
+
+import io.circe.parser._
+import io.circe.generic.auto._ // Brings implicit Decoders for standard types (like List[Int]) into scope
+import scala.util.{Left, Right} // For pattern matching on the Either result
 
 class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends AbstractController(cc) with ServerUrl {
 
   private val Logger = play.api.Logger(this.getClass)
 
-  def submitNewPassword() = Action { implicit request =>
+  def submitNewPassword() = Action { implicit request: Request[AnyContent] =>
     val errorMessage = s"Update of password failed. Please go back to main page ${serverUrl(request)} and try again, if you still want to change your password."
     val password = request.body.asFormUrlEncoded.get("pass1").head
     val pcrId = request.body.asFormUrlEncoded.get("pcrId").head
@@ -40,7 +47,7 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
     }
   }
 
-  def requestUsername() = Action { implicit request =>
+  def requestUsername() = Action { implicit request: Request[AnyContent] =>
     val inputEmail: String =
       request.body.asFormUrlEncoded.get("inputEmail").head
         .replaceAll("[ ;']", "")
@@ -62,8 +69,8 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
         emailHistoryDao.insert(emailHistoryItem)
 
         val f = Future {
-          send a new Mail(
-            from = ("info@oorep.com", "OOREP-Support"),
+          send `a` new Mail(
+            from = ("info@" + serverDomain(request), "OOREP-Support"),
             to = member.email,
             subject = "Username",
             message = s"You (or someone else) has requested that your OOREP username be emailed\n" +
@@ -99,7 +106,7 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
     *         exists or not.
     */
 
-  def requestPasswordChange() = Action { implicit request =>
+  def requestPasswordChange() = Action { implicit request: Request[AnyContent] =>
     def genRandomString(length: Int) = {
       val chars = ('A' to 'Z').toList ::: ('a' to 'z').toList ::: (0 to 9).toList.map(_.toString).map(_.head)
       scala.util.Random.shuffle(chars ::: chars).take(length).mkString
@@ -135,7 +142,7 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
 
           val randomIdString = genRandomString(30)
           val requestDate = new MyDate()
-          val emailLink = sys.env.get("OOREP_APPLICATION_HOST").getOrElse("https://www.oorep.com") + "/change_password?id=" + randomIdString
+          val emailLink = "https://" + serverDomain(request) + "/change_password?id=" + randomIdString
 
           dbContext.transaction {
             // A member may at most have one password change request in the database
@@ -150,8 +157,8 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
           emailHistoryDao.insert(emailHistoryItem)
 
           val f = Future {
-            send a new Mail(
-              from = ("info@oorep.com", "OOREP-Support"),
+            send `a` new Mail(
+              from = ("info@" + serverDomain(request), "OOREP-Support"),
               to = member.email,
               subject = "Password reset",
               message = s"You (or someone else) has requested that you reset your OOREP password.\n\n" +
@@ -184,10 +191,10 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
     *         or BadRequest(error string) if something went wrong.
     */
 
-  def saveCaze() = Action { request: Request[AnyContent] =>
+  def saveCaze() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
-        val requestData = request.body.asMultipartFormData.get.dataParts
+        val requestData = request.body.asFormUrlEncoded.get
         (requestData("fileId"), requestData("case").toList) match {
           case (Seq(fileId), cazeJson :: Nil) => {
             Caze.decode(cazeJson.toString) match {
@@ -198,15 +205,22 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
                   val err = s"Post: saveCaze() failed: not authorised."
                   Logger.error(err)
                   Forbidden(err)
-                } else {
-                  if (newCaseId < 0)
-                    newCaseId = cazeDao.insert(caze)
+                } else if (newCaseId < 0) {
+                  cazeDao.insert(caze) match {
+                    case Some(newCase) => {
+                      newCaseId = newCase.id
 
-                  if (fileDao.addCaseIdToFile(newCaseId, fileId.toInt))
-                    Ok(newCaseId.toString)
-                  else
-                    BadRequest(s"Post: saveCaze() failed: failed to add case with new ID ${newCaseId} (old case id: ${caze.id}) to file with ID ${fileId}.")
+                      if (fileDao.addCaseIdToFile(newCaseId, fileId.toInt))
+                        Ok(newCase.asJson.toString())
+                      else
+                        BadRequest(s"Post: saveCaze() failed: failed to add case with new ID ${newCaseId} (old case id: ${caze.id}) to file with ID ${fileId}.")
+                    }
+                    case None =>
+                      BadRequest(s"Post: saveCaze() failed: failed to create a new case with ID ${newCaseId} (old case id: ${caze.id}) for file with ID ${fileId}.")
+                  }
                 }
+                else
+                  BadRequest(s"Post: saveCaze() failed: failed to create a new case with ID ${newCaseId} (old case id: ${caze.id}) for file with ID ${fileId}.")
               case None =>
                 BadRequest("Post: saveCaze() failed: decoding of caze failed. Json wrong? " + cazeJson)
             }
@@ -220,23 +234,24 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
     }
   }
 
-  def addCaseRubricsToCaze() = Action { request: Request[AnyContent] =>
+  def addCaseRubricsToCaze() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
-        val requestData = request.body.asMultipartFormData.get.dataParts
+        val requestData = request.body.asFormUrlEncoded.get
 
         (requestData("memberID"), requestData("caseID"), requestData("caserubrics")) match {
           case (Seq(memberIdStr), Seq(cazeIDStr), Seq(caserubricsJson)) if (cazeIDStr.forall(_.isDigit) && (memberIdStr.forall(_.isDigit))) =>
-            (memberIdStr.toInt, cazeIDStr.toInt, CaseRubric.decodeList(caserubricsJson)) match {
+            (memberIdStr.toInt, cazeIDStr.toInt, CazeRubric.decodeList(caserubricsJson)) match {
               case (memberId, caseID, Some(caseRubrics)) =>
                 if (!isUserAuthorized(request, memberId)) {
                   val err = s"Post: addRubricsToCaze() failed: not authorised."
                   Logger.error(err)
                   Forbidden(err)
                 } else {
-                  if (cazeDao.addCaseRubrics(caseID, caseRubrics).length > 0) {
+                  val newlyAddedCaseRubricIds = cazeDao.addCaseRubrics(caseID, caseRubrics)
+                  if (newlyAddedCaseRubricIds.length > 0) {
                     Logger.debug(s"Post: addCaseRubricsToCaze(): success")
-                    Ok
+                    Ok(newlyAddedCaseRubricIds.mkString(", "))
                   }
                   else {
                     val err = s"Post: addCaseRubricsToCaze() failed"
@@ -261,7 +276,7 @@ class Post @Inject()(cc: ControllerComponents, dbContext: DBContext) extends Abs
     }
   }
 
-  def saveFile() = Action { request: Request[AnyContent] =>
+  def saveFile() = Action { (request: Request[AnyContent]) =>
     getAuthenticatedUser(request) match {
       case Some(_) => {
         FIle.decode(request.body.asText.get) match {

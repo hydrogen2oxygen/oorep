@@ -1,133 +1,118 @@
 package org.multics.baueran.frep.frontend.secure.base
 
 import scala.scalajs.js.annotation.JSExportTopLevel
-import org.multics.baueran.frep.shared._
-import frontend.{CaseModals, LoadingSpinner, MainView, RepertoryView, apiPrefix, serverUrl}
-import sec_frontend.{AddToFileModal, EditFileModal, FileModalCallbacks, NewFileModal, OpenFileModal, RepertoryModal}
-import fr.hmil.roshttp.HttpRequest
-import fr.hmil.roshttp.response.SimpleHttpResponse
-import io.circe.parser.parse
-import org.multics.baueran.frep.shared.Info
+import org.multics.baueran.frep.shared.*
+import org.multics.baueran.frep.shared.Defs.CookieFields
+import frontend.{CaseModals, LoadingSpinner, MainView, apiPrefix, serverUrl}
+import TopLevelUtilCode.{deleteAllCookies, toggleTheme}
+import sec_frontend.{AddToFileModal, EditFileModal, FileModalCallbacks, NewFileModal, SettingsModal, OpenFileModal}
 
-import scala.util.{Failure, Success}
 import scalatags.JsDom.all.{id, _}
-import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom
-import dom.Event
-import org.multics.baueran.frep.shared.TopLevelUtilCode.deleteCookies
+import org.scalajs.dom.Event
 
 import scala.scalajs.js.URIUtils.encodeURI
 
 @JSExportTopLevel("MainSecure")
 object Main extends MainUtil {
 
-  private val loadingSpinner = new LoadingSpinner("content")
-
-  // See MainUtil trait!
-  override def updateDataStructuresFromBackendData() = {
-    def getMMs() = {
-      println("TODO: Implement me!")
-      // TODO: Implement me!
-    }
-
-    def getRepertories() = {
-      HttpRequest(s"${serverUrl()}/${apiPrefix()}/available_reps")
-        .send()
-        .onComplete({
-          case response: Success[SimpleHttpResponse] => {
-            parse(response.get.body) match {
-              case Right(json) => {
-                val cursor = json.hcursor
-                cursor.as[List[Info]] match {
-                  case Right(infos) => {
-                    infos
-                      .sortBy(_.abbrev)
-                      .foreach(info => {
-                        dom.document
-                          .getElementById("secNavBarRepertories").asInstanceOf[dom.html.Div]
-                          .appendChild(a(cls:="dropdown-item", href:="#", data.toggle:="modal",
-                            onclick := { (e: Event) =>
-                              RepertoryModal.info() = Some(info)
-                            },
-                            data.target:="#repertoryInfoModal")(s"${info.abbrev} - ${info.displaytitle.getOrElse("")}").render)
-                      })
-                  }
-                  case Left(err) =>
-                    println(s"ERROR: secure.Main: JSON decoding error: $err")
-                }
-              }
-              case Left(err) =>
-                println(s"ERROR: secure.Main: JSON parsing error: $err")
-            }
-          }
-          case failure: Failure[_] =>
-            println(s"ERROR: secure.Main: available_reps failed: ${failure.toString}")
-        })
-    }
-
-    getRepertories()
-    getMMs()
-    MainView.updateDataStructuresFromBackendData()
-  }
-
   private def authenticateAndPrepare(): Unit = {
-    HttpRequest(s"${serverUrl()}/${apiPrefix()}/authenticate")
-      .send()
-      .onComplete({
-        case response: Success[SimpleHttpResponse] => {
-          if (dom.document.getElementById("static_content") == null) {
-            dom.document.getElementById("content").appendChild(MainView().render)
-          }
-
-          try {
-            val memberId = response.get.body.toInt
-            FileModalCallbacks.updateMemberFiles(memberId)
-          } catch {
-            case exception: Throwable =>
-              dom.document.location.replace(s"${serverUrl()}/${apiPrefix()}/display_error_page?message=${encodeURI("Not authenticated or cookie expired")}")
-              println("Exception: could not convert member-id '" + exception + "'. Deleting the cookies now!")
-              deleteCookies()
-          }
+    HttpRequest2("authenticate")
+      .onSuccess((response: String) => {
+        if (dom.document.getElementById("static_content") == null) {
+          dom.document.getElementById("content").appendChild(MainView().render)
         }
-        case _: Failure[SimpleHttpResponse] => {
-          dom.document.location.replace(s"${serverUrl()}/${apiPrefix()}/display_error_page?message=${encodeURI("Not authenticated or cookie expired")}")
-          deleteCookies()
+
+        try {
+          val memberId = response.toInt
+          frontend.setTransientUserState(Map(CookieFields.id -> response))
+          FileModalCallbacks.updateMemberFiles(memberId)
+          SettingsModal.updateWithDataFromDB(memberId)
+        } catch {
+          case exception: Throwable =>
+            dom.document.location.replace(s"${serverUrl()}/${apiPrefix()}/display_error_page?message=${encodeURI("Not authenticated or cookie expired")}")
+            println("Exception: could not convert member-id '" + exception + "'. Deleting the cookies now!")
+            deleteAllCookies()
         }
       })
+      .onFailure((_) => {
+        dom.document.location.replace(s"${serverUrl()}/${apiPrefix()}/display_error_page?message=${encodeURI("Not authenticated or cookie expired")}")
+        deleteAllCookies()
+      })
+      .send()
   }
 
   def main(args: Array[String]): Unit = {
     loadJavaScriptDependencies()
 
     // This is the static page which is shown when JS is disabled
-    val tempContent = dom.document.getElementById("temporary_content")
-    while (tempContent != null && tempContent.hasChildNodes())
-      tempContent.removeChild(tempContent.firstChild)
+    if (dom.document.getElementById("temporary_content") != null)
+      dom.document.body.removeChild(dom.document.getElementById("temporary_content"))
 
     if (dom.document.getElementById("static_content") == null) {
-      RepertoryView.init(loadingSpinner)
+      val loadingSpinner = new LoadingSpinner("content")
       loadingSpinner.add()
+      MainView.init(loadingSpinner)
+
+      // Both /?show...-calls call their own render() functions via html-page embedded JS
+      if (dom.window.location.toString.contains("/show")) {
+        dom.document.getElementById("disclaimer_div").asInstanceOf[dom.html.Div].style.setProperty("display", "none")
+      }
+      // /?change_password mustn't execute the main OOREP application. So, do nothing!
+      else if (dom.window.location.toString.contains("/change_password?")) {
+        ;
+      }
+      else {
+        // Static content must not also show the repertorisation view
+        // dom.document.getElementById("content").appendChild(MainView().render)
+        ;
+      }
     }
 
     dom.document.body.appendChild(div(style := "width:100%;", id := "content_bottom").render)
     dom.document.body.appendChild(AddToFileModal().render)
     dom.document.body.appendChild(OpenFileModal().render)
     dom.document.body.appendChild(EditFileModal().render)
-
-    // Not so nice but not so terrible either: we need to wait until modal exists to attach event-handler to it...
     dom.document.body.appendChild(NewFileModal().render)
-    dom.document.getElementById("new_file_form").asInstanceOf[dom.html.Form].addEventListener("submit", NewFileModal.onSubmit, false)
+    dom.document.body.appendChild(SettingsModal().render)
+    dom.document.body.appendChild(CaseModals.RepertorisationModal().render)
+    dom.document.body.appendChild(CaseModals.EditModal().render)
 
-    dom.document.body.appendChild(RepertoryModal().render)
-    dom.document.body.appendChild(CaseModals.Repertorisation().render)
-    dom.document.body.appendChild(CaseModals.EditDescription().render)
+    // Some event handlers for the navbar here
+    dom.document.getElementById("navbar_open_file") match {
+      case null => println("Could not set navbar event handler. Is the navbar loaded?")
+      case anchr => anchr.asInstanceOf[dom.html.Anchor].onclick = (ev: Event) => {
+        OpenFileModal.unselectAll()
+      }
+    }
 
-    if (!dom.window.location.toString.contains("/show?"))
+    dom.window.addEventListener("scroll", (e: dom.Event) => onScroll(e))
+
+    dom.document.getElementById("navbar_logout") match {
+      case null => ;
+      case elem => elem.addEventListener("click", (ev: dom.Event) => deleteAllCookies())
+    }
+
+    if (!dom.window.location.toString.contains("/show"))
       authenticateAndPrepare()
     else
       dom.document.getElementById("disclaimer_div").asInstanceOf[dom.html.Div].style.setProperty("display", "none")
 
-    showNavBar()
+    dom.document.getElementById("transparency") match {
+      case null => ;
+      case elem => elem.addEventListener("click", (ev: dom.Event) => toggleTheme())
+    }
+
+    // This is to handle all the index_... pages, which do something after the main script has been loaded,
+    // e.g. look something up or display the password-change dialog.
+    handleCallsWithURIencodedParameters()
+
+    setCsrfToken()
+  }
+
+  // See MainUtil trait!
+  override def updateDataStructuresFromBackendData() = {
+    MainView.updateDataStructuresFromBackendData()
   }
 
 }

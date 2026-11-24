@@ -1,19 +1,17 @@
 package org.multics.baueran.frep.shared.frontend
 
-import fr.hmil.roshttp.HttpRequest
-import fr.hmil.roshttp.response.SimpleHttpResponse
 import io.circe.parser.parse
 import org.multics.baueran.frep.shared.Defs.CookieFields
-import org.multics.baueran.frep.shared.Remedy
+import org.multics.baueran.frep.shared.{HttpRequest2, Remedy}
 import org.multics.baueran.frep.shared.sec_frontend.FileModalCallbacks.updateMemberFiles
-import scalatags.JsDom.all._
+import org.multics.baueran.frep.shared.frontend.views.materiamedica.MateriaMedicaView
+import org.multics.baueran.frep.shared.frontend.views.repertory.{RepertoryBrowseView, RepertoryView}
+import scalatags.JsDom.all.*
 import org.scalajs.dom
 import scalatags.JsDom
-import monix.execution.Scheduler.Implicits.global
 import org.scalajs.dom.raw.BeforeUnloadEvent
 
 import scala.scalajs.js.annotation.JSExportTopLevel
-import scala.util.Success
 
 @JSExportTopLevel("MainView")
 object MainView {
@@ -25,31 +23,36 @@ object MainView {
     def append(element: dom.html.Element) = dom.document.getElementById(caseDivId).appendChild(element)
   }
 
+  private var _loadingSpinner: Option[LoadingSpinner] = None
+
   // Register tab views: order is relevant. First element is first tab, and so on...
-  private val _tabViews = List(RepertoryView, MateriaMedicaView)
+  private val _tabViews = List(RepertoryView, RepertoryBrowseView, MateriaMedicaView)
   private var _remedies: List[Remedy] = List.empty
+
+  def init(loadingSpinner: LoadingSpinner): Unit = {
+    _loadingSpinner = Some(loadingSpinner)
+  }
+
+  def loadingSpinner() = _loadingSpinner
 
   private def getAvailableRemedies(): List[Remedy] = {
     if (_remedies.length == 0) {
-      HttpRequest(s"${serverUrl()}/${apiPrefix()}/available_remedies")
-        .send()
-        .onComplete({
-          case response: Success[SimpleHttpResponse] => {
-            parse(response.get.body) match {
-              case Right(json) => {
-                val cursor = json.hcursor
-                cursor.as[List[Remedy]] match {
-                  case Right(allRemedies) =>
-                    _remedies = allRemedies
-                    _tabViews.map(_.updateDataStructures(_remedies))  // Update also the tab views' datastructures!
-                  case Left(err) => println("Parsing of remedies failed: " + err)
-                }
+      HttpRequest2("available_remedies")
+        .onSuccess((response: String) =>
+          parse(response) match {
+            case Right(json) => {
+              val cursor = json.hcursor
+              cursor.as[List[Remedy]] match {
+                case Right(allRemedies) =>
+                  _remedies = allRemedies
+                  _tabViews.map(_.updateDataStructures(_remedies)) // Update also the tab views' datastructures!
+                case Left(err) => println("Parsing of remedies failed: " + err)
               }
-              case Left(err) => println("Parsing of remedies failed: is it JSON? " + err)
             }
+            case Left(err) => println("Parsing of remedies failed: is it JSON? " + err)
           }
-          case _ => println("MainView didn't receive available remedies from backend.")
-        })
+        )
+        .send()
     }
 
     _remedies
@@ -70,10 +73,10 @@ object MainView {
         // This is code, where the various tab views can modify the DOM after its been rendered
         _tabViews.foreach(_.onResultsDrawn())
 
-        if (dom.document.getElementById("nav_bar_logo").innerHTML.length() == 0) {
+        if (dom.document.getElementById("nav_bar_logo") != null && dom.document.getElementById("nav_bar_logo").innerHTML.length() == 0) {
           val navbar = dom.document.getElementById("nav_bar").asInstanceOf[dom.html.Element]
 
-          navbar.className = navbar.className + " bg-dark navbar-dark shadow p-3 mb-5"
+          navbar.className = navbar.className + " bg-dark navbar-dark shadow"
 
           dom.document.getElementById("nav_bar_logo")
             .appendChild(a(cls:="navbar-brand py-0", style:="margin-top:8px;", href:=serverUrl(), h5(cls:="freetext", "OOREP")).render)
@@ -97,7 +100,7 @@ object MainView {
     if (features != null)
       dom.document.body.removeChild(features)
 
-    getCookieData(dom.document.cookie, CookieFields.id.toString) match {
+    getTransientUserState(CookieFields.id) match {
       case Some(id) => updateMemberFiles(id.toInt)
       case None => ;
     }
@@ -138,7 +141,7 @@ object MainView {
         )
       }
 
-      div(cls:="container-fluid", style:="margin-top:100px; margin-bottom:30px;",
+      div(cls:="container-fluid", style:="margin-top:30px; margin-bottom:30px;",
         ul(cls:="nav nav-tabs",
           _tabViews.map(tabView =>
             li(cls:="nav-item",
@@ -176,7 +179,7 @@ object MainView {
 
         div(cls:="container-fluid vertical-align",
 
-          h1(cls:="col-sm-12 text-center", img(src:=s"${serverUrl()}/assets/html/img/logo_small.png", style:="width:180px; height:65px;", alt:="OOREP - open online repertory of homeopathy")),
+          h1(cls:="col-sm-12 text-center", img(src:=s"${serverUrl()}/assets/html/img/logo_small.png", style:="width:180px; height:65px; margin-bottom: 5px;", alt:="OOREP - open online repertory of homeopathy")),
 
           div(cls:="container text-center",
             ul(cls:="nav nav-tabs",
@@ -200,7 +203,7 @@ object MainView {
   }
 
   def someResultsHaveBeenShown() = {
-    _tabViews.exists(_.containesAnyResults())
+    _tabViews.exists(_.containsAnyResults())
   }
 
   def apply(): JsDom.TypedTag[dom.html.Div] = {
